@@ -1,10 +1,7 @@
 # Data Compression
+## by Anthony Matarazzo (c) 2026
 
-
-
-by Anthony Matarazzo (c) 2026
-
-Introduction
+# Introduction
 
 The study of sound and audio signals dates back centuries, with early experiments in acoustics tracing to the work of Pythagoras in Ancient Greece around 500 BCE, who explored musical intervals and harmonic ratios. These foundational principles laid the groundwork for understanding waveforms, frequency, and pitch.
 
@@ -132,7 +129,7 @@ The interplay between perception, mathematics, and redundancy defines modern dat
 
 The raw formats, whether pixels, samples, or characters, provide the baseline. Compression then leverages knowledge about structure, correlation, and human perception, mathematically encoded using entropy, predictive models, transforms, and quantization.
 
-NibbleStream Compressor
+# NibbleStream Compressor
 
 The NibbleStream text compressor is a sophisticated, multi-layered compression engine designed to efficiently encode textual data while supporting multiple languages, diacritics, and custom field types. At its core, NibbleStream reduces data size by combining several complementary compression techniques, including nibble-level encoding, sliding-window pattern recognition, adaptive Huffman coding, and the Burrows–Wheeler transform. Each of these methods contributes to a layered approach that maximizes compression efficiency for a wide variety of text sources, from classical literature to modern digital content.
 
@@ -178,7 +175,7 @@ The compressor is extensible to multi-lingual content. Through its extended dict
 
 Finally, the layered approach of nibble encoding, sliding-window pattern detection, adaptive Huffman coding, BWT, numeric block encoding, and entity tokenization ensures that NibbleStream remains competitive with, and in some cases exceeds, the performance of conventional compressors, especially on large textual datasets with repetitive structures.
 
-Comparative Compression Table
+## Comparative Compression Table
 
 | Compressor | Technique | Avg Compression Ratio | Strengths | Weaknesses |
 | --- | --- | --- | --- | --- |
@@ -1435,7 +1432,7 @@ int main() {
 */
 ```
 
-NibbleWebStream
+# NibbleWebStream
 
 NibbleWebStream is a multi-layer compression system designed specifically for modern web content, where HTML, CSS, JavaScript, and JSON dominate the data landscape. Unlike traditional compressors that treat input as raw byte streams, this system understands structure, syntax, and repetition at a semantic level, allowing it to achieve significantly higher compression ratios on web assets.
 
@@ -1529,7 +1526,7 @@ The flexibility of NibbleWebStream makes it adaptable to a wide range of applica
 
 Overall, the system represents a significant advancement in compression technology by combining structural awareness with traditional algorithms.
 
-Compression Comparison Table
+## Compression Comparison Table
 
 | Data Type | Original Size | NibbleWebStream | Gzip | Bzip2 | Zstd | LZMA |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -1541,7 +1538,7 @@ Compression Comparison Table
 
 ***
 
-NibbleWebStream.hpp
+## NibbleWebStream.hpp
 
 ```javascript
 #pragma once
@@ -1681,7 +1678,7 @@ private:
 
 ***
 
-NibbleWebStream.tpp
+## NibbleWebStream.tpp
 
 ```javascript
 #pragma once
@@ -1893,7 +1890,7 @@ void NibbleWebStream<BufferType>::createBundle(const std::vector<BundleEntry> &f
 
 ***
 
-Browser Cache Format
+## Browser Cache Format
 
 Adds metadata:
 
@@ -1918,7 +1915,7 @@ void NibbleWebStream<BufferType>::writeCacheFile(const std::string &filename) {
 
 ***
 
-Compression Impact
+## Compression Impact
 
 | Layer | Benefit |
 | --- | --- |
@@ -1938,7 +1935,7 @@ This system behaves more like a compiler + compressor hybrid:
 - Compresses redundancy (patterns + Huffman)
 - Packages for transport (bundle format)
 
-Dense Compressor
+## Dense Compressor
 
 The AdvancedHybridCompressorFullAPCT is designed to handle dense numerical and multimedia data efficiently. Traditional compressors such as gzip or lz4 often struggle when dealing with already compressed formats like MP3 or MPEG, where entropy is already high and patterns are subtle. This compressor leverages modular arithmetic folding to reduce numerical values into smaller representations. By doing so, it effectively removes high-order bits and creates smaller datasets without any information loss. The algorithm also uses adaptive nibble selection to determine which values should be folded in a given block, with each nibble representing a possible transformation, including no addition, a small addition, or a larger adjustment. This dynamic approach allows the algorithm to adapt to the statistical distribution of values in each block, which is particularly useful for numerical data with repeated structures or predictable patterns. By reducing the value range in this manner, the entropy coding step becomes more effective, enabling higher compression ratios than traditional methods.
 
@@ -2022,7 +2019,7 @@ It includes extensive documentation and modular code structure, making integrati
 
 Finally, the AdvancedHybridCompressorFullAPCT represents a state-of-the-art approach to dense data compression, combining multiple techniques to achieve high compression efficiency while maintaining lossless reconstruction across a wide variety of data types.
 
-Compression Comparison Table
+## Compression Comparison Table
 
 | File Type / Example File | Original Size (MB) | AdvancedHybridCompressor (Dense+APCT) | gzip | zstd | lz4 |
 | --- | --- | --- | --- | --- | --- |
@@ -2051,11 +2048,11 @@ Observations from the Table:
 ```javascript
 ```
 
-Lossless and Near Lossless Audio Compression
+# Lossless and Near Lossless Audio Compression
 
-Comprehensive Analysis of the Perceptual Hybrid Audio Compressor
+## Comprehensive Analysis of the Perceptual Hybrid Audio Compressor
 
-Part 1: Algorithm Architecture and Theoretical Foundations
+## Part 1: Algorithm Architecture and Theoretical Foundations
 
 The Perceptual Hybrid Audio Compressor represents a significant departure from conventional audio coding paradigms. Unlike traditional codecs that rely primarily on transform coding with fixed psychoacoustic models, this architecture implements a multi-strategy approach that dynamically selects from eight distinct encoding modes based on signal characteristics. This adaptive framework addresses a fundamental limitation of codecs like MP3 and AAC, which apply the same transform-based processing to all audio content regardless of its statistical properties. The eight-mode system includes MDCT direct coding, sinusoidal carrier modeling, linear predictive coding, sparse voxel representation, shaped noise synthesis, matching pursuit atom decomposition, fractal self-similarity coding, and hybrid combinations thereof. Each mode targets a specific type of audio signal redundancy, creating a system that can theoretically achieve compression ratios of 15:1 to 30:1 while maintaining perceptual transparency.
 
@@ -2065,7 +2062,7 @@ The sinusoidal carrier mode implements a simplified version of the MPEG-4 HILN (
 
 Linear predictive coding excels at modeling speech and other signals with strong short-term correlation. The Levinson-Durbin recursion computes LPC coefficients efficiently in O(p²) operations, where p is the prediction order. For a 10th-order model on 20 ms speech frames, the prediction gain typically ranges from 12 to 18 dB, meaning the residual signal energy is 15 to 60 times smaller than the original. This allows the residual to be coded with far fewer bits. The mode achieves compression ratios of 25:1 to 35:1 for clean speech, dramatically outperforming MDCT-based codecs that require 8:1 to 12:1 for comparable quality. However, LPC suffers from several well-documented weaknesses. The all-pole model cannot accurately represent nasal sounds or fricatives, which contain zeros in the transfer function. For the fricative /s/ sound, the prediction gain drops to only 3 dB, making LPC less efficient than simple transform coding. Additionally, LPC coefficients are highly sensitive to quantization errors. A 1% error in a single coefficient can cause spectral distortion exceeding 5 dB, introducing audible "burbling" artifacts. The implementation mitigates this through line spectral pair (LSP) conversion, which improves quantization robustness by ensuring spectral stability, but at the cost of increased computational complexity.
 
-Part 2: Sparse and Stochastic Modeling Techniques
+## Part 2: Sparse and Stochastic Modeling Techniques
 
 The voxel mode represents the most novel contribution of this compressor, applying three-dimensional grid quantization to the time-frequency-amplitude space. Unlike conventional spectrogram coding that stores all bins uniformly, voxel modeling only stores cells where the magnitude exceeds a perceptual threshold. For a typical pop music signal with 5% transient content, the voxel mode reduces the number of stored coefficients by 90% compared to full MDCT coding. The implementation uses a 32×32 grid, producing 1,024 potential voxels per block but typically storing only 20 to 60 actual voxels. Each voxel requires 5 bytes (two for time index, two for frequency index, one for quantized amplitude), yielding 100 to 300 bytes per block versus 1,024 bytes for uncompressed MDCT coefficients. The mode achieves 30:1 compression for sparse signals like solo castanets or isolated drum hits while preserving the exact temporal envelope, which is critical for percussive transients.
 
@@ -2075,7 +2072,7 @@ The shaped noise mode implements a simplified version of the noise filling techn
 
 The shaped noise mode's weakness becomes apparent when processing signals that humans perceive as noise but actually contain structure. Examples include waterfall sounds, which have fractal-like self-similarity, or distant traffic noise, which contains subtle periodic components from engine harmonics. In these cases, shaped noise replacement introduces a "smooth" quality that sounds unnatural. The problem worsens at low bitrates where the envelope quantization becomes coarse. At QUALITY\_LOW mode, the envelope uses only 32 possible levels per band, causing audible "swishing" artifacts as the envelope changes between blocks. The current implementation also lacks temporal noise shaping (TNS), which would allow the noise envelope to track temporal variations within a block. Without TNS, pre-echo artifacts can occur when a quiet noise block precedes a loud transient, as the decoder's noise generator may produce output during the quiet region that becomes audible when the transient arrives.
 
-Part 3: Dictionary-Based and Predictive Coding
+## Part 3: Dictionary-Based and Predictive Coding
 
 The matching pursuit mode implements a greedy algorithm that iteratively selects the best-fitting atom from a dictionary of time-frequency basis functions. The dictionary contains 256 atoms, including Gaussians, damped sinusoids, and Dirac impulses. For a signal containing a mixture of a 440 Hz tone and an impulsive click, the algorithm first selects a Gaussian atom centered at the click location with amplitude 0.8, then selects a sinusoid atom for the tone with amplitude 0.5. The residual after subtracting these two atoms contains only 10% of the original energy, requiring far fewer bits to encode. For mixed content such as a piano playing chords while a singer vocalizes, matching pursuit achieves 15:1 compression while maintaining 0.95 correlation, outperforming both carrier-only and MDCT-only approaches by a factor of two.
 
@@ -2085,7 +2082,7 @@ The fractal self-similarity mode exploits the repetitive structure common in mus
 
 The fractal mode's Achilles' heel is non-repetitive content. For through-composed classical music like Beethoven's Symphony No. 5, where the famous motif appears only once in identical form, the mode finds no useful self-similarity and falls back to the residual coding path. In this worst case, the overhead of transmitting the pointer and scale factor actually increases bitrate by approximately 5% compared to using the MDCT direct mode. The implementation includes a decision threshold (FRACTAL\_THRESHOLD = 0.7) that prevents fractal mode usage when correlation is below this value, but this adds a detection overhead of 32 correlation computations per block. The time warping parameter, which allows matching at slightly different tempos, is currently unused in the implementation because computing time-warped correlation would increase complexity by a factor of 10.
 
-Part 4: APCT Framework and Entropy Reduction
+## Part 4: APCT Framework and Entropy Reduction
 
 The APCT (Adaptive Pattern Compression Transform) framework provides a universal byte-level compression layer that operates after audio mode encoding. The modular folding technique redistributes byte values to increase run-length encoding efficiency. By calculating the folding offset as (min\_val + range/3) % 256, the algorithm centers the distribution around zero, converting values from the original range [min, max] to the folded range [0, range]. For a block of PCM audio containing values between 100 and 150, folding reduces the effective range from 256 to 50, increasing the probability of repeated values. In empirical testing with 1,000 audio blocks, folding increased the average run length from 1.8 to 4.2 bytes, improving RLE compression by 2.3×.
 
@@ -2093,7 +2090,7 @@ The XOR prediction encoding exploits sample-to-sample correlation by storing the
 
 The multi-backend compression system evaluates five algorithms per block: RLE, Huffman, delta+Golomb, LZ77, and no compression. In tests with 10,000 audio blocks, the optimal backend distribution was RLE 35%, Huffman 28%, delta+Golomb 22%, LZ77 12%, and none 3%. The RLE dominance reflects the high frequency of repeated bytes in folded, XOR-encoded audio. Huffman coding excels when the byte distribution is non-uniform but lacks long runs, such as in carrier parameter streams containing many different small values. Delta+Golomb performs best on LPC coefficients, which have exponential distributions, while LZ77 finds patterns in matching pursuit atom indices that repeat across blocks.
 
-Part 5: Quality Mode Analysis and Rate-Distortion Performance
+## Part 5: Quality Mode Analysis and Rate-Distortion Performance
 
 The six quality modes provide a smooth trade-off between bitrate and perceptual quality. QUALITY\_MASTER mode uses 16-bit precision for all parameters, 0.0001 MDCT quantization steps, and full psychoacoustic modeling. In listening tests with 20 trained listeners, the master mode achieved a mean opinion score (MOS) of 4.95 out of 5.0, indistinguishable from the original PCM in ABX testing. The mode compresses CD-quality audio (1,411 kbps stereo) to approximately 280 kbps, a 5:1 ratio that is comparable to FLAC but with slightly higher compression. At this bitrate, the algorithm spends 40% of bits on the MDCT coefficients, 30% on parameters, and 30% on residual coding.
 
@@ -2101,7 +2098,7 @@ QUALITY\_STUDIO mode reduces precision to 12 bits for most parameters and increa
 
 QUALITY\_HIGH mode uses 10-bit parameters and 0.005 quantization steps, achieving 120 kbps (11.8:1). MOS drops to 4.2, with noticeable artifacts on complex material like orchestral crescendos. The noise floor rises to approximately -65 dB, which is audible only during quiet passages. This mode compares favorably with MP3 at 128 kbps, which typically produces pre-echo artifacts on castanets that the hybrid compressor avoids through the voxel mode. QUALITY\_STANDARD mode targets 96 kbps (14.7:1) with MOS 3.8, suitable for background music streaming. QUALITY\_MOBILE at 64 kbps (22:1) achieves MOS 3.2, introducing audible "waterfall" noise on complex passages but remaining intelligible for speech. QUALITY\_LOW at 48 kbps (29:1) drops MOS to 2.5, with artifacts becoming distracting.
 
-Part 6: Comparison with Established Codecs
+## Part 6: Comparison with Established Codecs
 
 A direct comparison with FLAC (lossless), Opus, AAC, MP3, and Vorbis reveals the hybrid compressor's strengths and weaknesses. Using the same 60-second pop music sample (1,411 kbps CD audio, 44.1 kHz stereo), the following results were measured:
 
@@ -2115,7 +2112,7 @@ MP3 at 128 kbps achieved MOS 3.9 with 0.96 correlation, exhibiting pre-echo arti
 
 Vorbis at 112 kbps achieved MOS 4.0 with 0.965 correlation, comparable to AAC. The hybrid compressor's QUALITY\_MOBILE mode at 64 kbps achieved MOS 3.2, which is significantly lower quality than Vorbis at 112 kbps. This indicates that the hybrid compressor's quality degrades more rapidly at low bitrates than Vorbis, likely due to the overhead of transmitting mode selection bits (approximately 2 kbps per block).
 
-Part 7: Psychophysical Validation and Artifact Analysis
+## Part 7: Psychophysical Validation and Artifact Analysis
 
 The psychoacoustic model's accuracy was validated using the ISO/IEC 11172-3 test methodology. For a 1 kHz tone at 60 dB SPL masked by a 1.1 kHz tone at 70 dB SPL, the model predicted a masking threshold of 35 dB, which matches empirical data from Zwicker's critical band experiments within 2 dB. For temporal masking, the model correctly predicts that a 50 ms masker at 80 dB SPL raises the threshold for a 10 ms probe by 40 dB when the probe occurs immediately after the masker, decaying to 10 dB at 100 ms separation. These predictions align with the MPEG-1 psychoacoustic model 2 specification.
 
@@ -2123,7 +2120,7 @@ However, the model fails to account for binaural masking level differences (BMLD
 
 Artifact analysis reveals three primary distortion types. First, the carrier mode produces "musical noise" at low bitrates when the number of carriers is insufficient to model the signal. For a piano chord with 10 partials, limiting to 6 carriers causes the remaining 4 partials to be omitted, creating a hollow sound. The residual coding partially restores these partials but introduces quantization noise that is correlated with the signal, creating a metallic timbre. Second, the voxel mode introduces "stuttering" artifacts when the voxel grid resolution is too coarse. For a 5 ms drum hit, the 16 ms time resolution causes the attack to be spread across three voxels, producing a "chipmunk" effect. Third, the fractal mode creates "looping" artifacts when the self-similarity detection incorrectly matches unrelated blocks. For a gradual crescendo, the mode may match an earlier quiet block with a later loud block, causing a sudden drop in amplitude at the transition point.
 
-Part 8: Bitrate Distribution and Entropy Analysis
+## Part 8: Bitrate Distribution and Entropy Analysis
 
 Empirical measurement of bit allocation across the 60-second pop sample reveals that the MDCT direct mode consumes 35% of bits, carrier mode 22%, LPC 18%, voxel 12%, noise 8%, matching pursuit 3%, and fractal 2%. The distribution varies significantly by genre. For speech, LPC dominates at 65% of bits, with noise filling accounting for 20% and MDCT only 10%. For electronic dance music, fractal mode increases to 25% due to looped sections, while carrier mode accounts for 40% of bits due to sustained synthesizer tones. For classical music, MDCT direct mode rises to 60% due to the complexity and non-repetitive nature of orchestral arrangements.
 
@@ -2131,7 +2128,7 @@ Entropy analysis using Shannon's formula reveals that the hybrid compressor redu
 
 The overhead of mode switching is significant at low bitrates. Each block requires 5 bytes for header information, 2 bytes for mode data size, and approximately 2 bytes for nibble stream synchronization. For 86 blocks per second, this overhead is 774 bytes per second or 6.2 kbps. At QUALITY\_MOBILE's 64 kbps, overhead consumes 9.7% of the bit budget. At QUALITY\_LOW's 48 kbps, overhead rises to 13%, significantly impacting compression efficiency. Variable block sizes could reduce overhead by using larger blocks for stationary content, but this would increase latency and memory requirements.
 
-Part 9: Complexity Analysis and Optimization Opportunities
+## Part 9: Complexity Analysis and Optimization Opportunities
 
 The encoder's computational complexity is dominated by three operations: the MDCT transform (30%), psychoacoustic model (25%), and mode selection (35%). The MDCT uses a naive O(N²) implementation for simplicity, but a fast algorithm based on the FFT would reduce complexity from 262,144 operations per block to 5,120 operations (512 × log2(512)), a 51× improvement. The psychoacoustic model's spreading function convolution currently uses O(B²) operations, where B is the number of Bark bands. With B=25, this is negligible, but the model also computes 512-point FFTs for each block, costing approximately 10,000 operations.
 
@@ -2141,7 +2138,7 @@ The decoder's complexity is significantly lower, requiring only the inverse of t
 
 Optimization opportunities include SIMD vectorization, fixed-point arithmetic, and lookup table precomputation. The MDCT's cosine values can be precomputed into a 512×512 table (2 MB), trading memory for speed. The psychoacoustic model's spreading function can be implemented as a 25×25 matrix multiply, which is cache-friendly and amenable to SIMD acceleration. The carrier mode's peak picking can use a priority queue to find the top K peaks in O(N log K) rather than O(N²). With K=8, this reduces complexity from 262,144 to 512 × 3 = 1,536 operations, a 170× improvement.
 
-Part 10: Bit-Exact Byte Comparisons
+## Part 10: Bit-Exact Byte Comparisons
 
 To provide concrete evidence of the compressor's performance, a bit-exact comparison was performed on a 512-byte test vector representing one block of a 1 kHz sine wave at 0 dBFS. The original PCM required 512 bytes (8-bit μ-law). FLAC compressed this to 168 bytes (3.05:1 ratio) using linear prediction and residual coding. The hybrid compressor's MDCT direct mode with QUALITY\_HIGH achieved 64 bytes (8:1 ratio) by quantizing the MDCT coefficients to 10 bits and applying run-length encoding. The reconstructed sine wave had 0.998 correlation and -48 dB SNR, inaudible due to masking.
 
@@ -2151,7 +2148,7 @@ For a transient block containing a single sample impulse at position 256, the hy
 
 For a noise block containing 60 seconds of pink noise at -20 dBFS, the hybrid's noise mode with QUALITY\_MOBILE achieved 48 bytes (10.7:1 ratio) versus FLAC's 512 bytes (1:1, incompressible). The noise mode stored a 24-band envelope (48 bytes) and a random seed (4 bytes), with no residual. The reconstructed noise had 0.6 correlation with the original but sounded perceptually similar in ABX testing, with listeners correctly identifying the difference only 55% of the time (chance is 50%). For noise signals, the shaped noise mode is essentially transparent at any bitrate above 1 kbps.
 
-Part 11: Genre-Specific Performance and Recommendations
+## Part 11: Genre-Specific Performance and Recommendations
 
 Based on comprehensive testing across 100 audio samples spanning 10 genres, the following performance metrics and recommendations emerge. For classical music, the MDCT direct mode dominates due to the wide dynamic range and complex harmonic structures. At 192 kbps (7.35:1 compression), the hybrid compressor achieves MOS 4.8, equivalent to AAC at 256 kbps. The carrier mode fails on classical because orchestral instruments produce inharmonic overtones that cannot be modeled with few sinusoids. Recommended quality setting for classical is QUALITY\_HIGH (120 kbps) for streaming, QUALITY\_STUDIO (180 kbps) for archiving.
 
@@ -2163,7 +2160,7 @@ For rock and pop music, which contain a mixture of sustained vocals, distorted g
 
 For ambient and nature recordings, which contain continuous noise-like signals, the shaped noise mode is optimal. At 64 kbps (22:1), the hybrid compressor achieves MOS 4.2, outperforming Opus at 96 kbps (MOS 4.0) because the noise mode perfectly matches the signal characteristics. However, for recordings containing bird songs or other tonal elements, the carrier mode must handle those frequencies, increasing bitrate to 96 kbps for equivalent quality. Recommended quality setting for ambient is QUALITY\_MOBILE (64 kbps), which provides transparent quality for most natural sounds.
 
-Part 12: Future Improvements and Research Directions
+## Part 12: Future Improvements and Research Directions
 
 The current implementation, while functional, has several limitations that present opportunities for future research. The most significant is the lack of joint stereo coding. The compressor processes each channel independently, missing opportunities for inter-channel redundancy reduction. A mid/side (M/S) stereo coding mode would encode the sum and difference of left and right channels, exploiting the high correlation between channels in most music. For a typical pop recording with centered vocals, M/S coding would reduce bitrate by 30-40% with no quality loss. The implementation would require extending the mode selector to operate on M/S pairs and modifying the MDCT to handle two-channel transforms.
 
@@ -2175,11 +2172,11 @@ Learned dictionaries for the matching pursuit mode could replace the current han
 
 Finally, the fractal mode could be extended to support time warping and amplitude scaling across longer time scales. The current implementation only matches entire blocks, but musical repetitions often occur at different tempos or dynamic levels. Time warping would require resampling the history block to match the current block's tempo, which can be implemented using sinc interpolation at moderate cost (O(N log N)). Amplitude scaling is already supported, but the current scale factor is a single float; a frequency-dependent scale factor would better model equalization changes between repeated sections.
 
-Conclusion
+## Conclusion
 
 The Perceptual Hybrid Audio Compressor represents a significant advance in audio coding technology, achieving compression ratios of 10:1 to 30:1 while maintaining perceptual quality through adaptive mode selection and psychoacoustic modeling. The eight-mode architecture addresses a fundamental limitation of conventional codecs by matching the coding strategy to the signal's statistical properties. The voxel mode's superior transient handling, LPC mode's exceptional speech compression, and fractal mode's exploitation of musical repetition provide measurable advantages over established formats like AAC, MP3, and Opus in specific domains. However, the encoder's high complexity (850 ms per second of audio) and the overhead of mode selection at low bitrates remain significant limitations. Future work on joint stereo coding, temporal noise shaping, rate-distortion optimization, and learned dictionaries could further improve compression efficiency and perceptual quality. For applications where encoding time is not critical and maximum compression is required, the hybrid compressor offers a compelling alternative to existing codecs, particularly for speech, electronic music, and percussive content. The bit-exact comparisons demonstrate concrete byte savings across multiple test cases, validating the theoretical advantages of the multi-strategy approach.
 
-Part 1: Lossless Mode Comparison
+## Part 1: Lossless Mode Comparison
 
 \*Note: OGG and MP3 do NOT have native lossless modes. OGG is a container (can hold FLAC), MP3 is lossy-only. Comparison shows Hybrid Lossless vs FLAC-in-OGG vs theoretical MP3 Lossless.\*
 
@@ -2202,7 +2199,7 @@ Conclusion: MP3 has no lossless mode. OGG requires FLAC inside for lossless. Hy
 
 
 
-Part 2: Sound Quality Comparison (Perceptual)
+## Part 2: Sound Quality Comparison (Perceptual)
 
 Mean Opinion Score (MOS) - Higher is Better (1-5 scale)
 
@@ -2220,9 +2217,7 @@ Mean Opinion Score (MOS) - Higher is Better (1-5 scale)
 | Audiobook | 5.0 | 4.9 | 4.9 | 4.5 | 4.2 | 4.6 | 4.3 | 4.0 |
 
 
-
-
-Part 3: Bitrate vs Quality Curves
+## Part 3: Bitrate vs Quality Curves
 
 Bitrate Required for "Transparent" Quality (MOS 4.5+)
 
@@ -2240,11 +2235,9 @@ Bitrate Required for "Transparent" Quality (MOS 4.5+)
 Interpretation: Hybrid achieves transparency at 50-60% lower bitrate than OGG, and 60-70% lower than MP3.
 
 
+## Part 4: Artifact Analysis by Codec
 
-
-Part 4: Artifact Analysis by Codec
-
-MP3 Artifacts (by bitrate)
+## MP3 Artifacts (by bitrate)
 
 | Artifact Type | 320 kbps | 192 kbps | 128 kbps | Description |
 | --- | --- | --- | --- | --- |
@@ -2254,7 +2247,7 @@ MP3 Artifacts (by bitrate)
 | Smearing | Minor | Noticeable | Severe | Blurred transients |
 | Stereo collapse | None | Minor | Moderate | Reduced width |
 
-OGG Vorbis Artifacts
+## OGG Vorbis Artifacts
 
 | Artifact Type | 192 kbps | 128 kbps | 96 kbps | Description |
 | --- | --- | --- | --- | --- |
@@ -2264,7 +2257,7 @@ OGG Vorbis Artifacts
 | Smearing | Minor | Noticeable | Moderate | Similar to MP3 |
 | Stereo collapse | None | None | Minor | Better than MP3 |
 
-Hybrid Compressor Artifacts
+## Hybrid Compressor Artifacts
 
 | Artifact Type | Studio (180k) | High (120k) | Standard (96k) | Mobile (64k) | Description |
 | --- | --- | --- | --- | --- | --- |
@@ -2274,12 +2267,9 @@ Hybrid Compressor Artifacts
 | Burbling | None | None | Rare | Occasional | LPC coefficient errors |
 | Swishing | None | Rare | Occasional | Common | Noise envelope coarse |
 
+## Part 5: Blind Listening Test Results (40 listeners, 5 samples each)
 
-
-
-Part 5: Blind Listening Test Results (40 listeners, 5 samples each)
-
-Test 1: Pop Music (96 kbps)
+## Test 1: Pop Music (96 kbps)
 
 | Codec | MOS | "Cannot distinguish from original" |
 | --- | --- | --- |
@@ -2287,7 +2277,7 @@ Test 1: Pop Music (96 kbps)
 | OGG Vorbis | 4.3 | 52% |
 | MP3 | 4.0 | 35% |
 
-Test 2: Speech (48 kbps)
+## Test 2: Speech (48 kbps)
 
 | Codec | MOS | "Cannot distinguish from original" |
 | --- | --- | --- |
@@ -2295,7 +2285,7 @@ Test 2: Speech (48 kbps)
 | OGG Vorbis | 3.8 | 32% |
 | MP3 | 3.5 | 22% |
 
-Test 3: Classical Music (128 kbps)
+## Test 3: Classical Music (128 kbps)
 
 | Codec | MOS | "Cannot distinguish from original" |
 | --- | --- | --- |
@@ -2303,7 +2293,7 @@ Test 3: Classical Music (128 kbps)
 | OGG Vorbis | 4.2 | 48% |
 | MP3 | 3.9 | 35% |
 
-Test 4: Drums/Percussion (128 kbps)
+## Test 4: Drums/Percussion (128 kbps)
 
 | Codec | MOS | "Cannot distinguish from original" |
 | --- | --- | --- |
@@ -2311,7 +2301,7 @@ Test 4: Drums/Percussion (128 kbps)
 | OGG Vorbis | 4.0 | 38% |
 | MP3 | 3.6 | 25% |
 
-Test 5: Electronic Music (96 kbps)
+## Test 5: Electronic Music (96 kbps)
 
 | Codec | MOS | "Cannot distinguish from original" |
 | --- | --- | --- |
@@ -2320,9 +2310,7 @@ Test 5: Electronic Music (96 kbps)
 | MP3 | 4.1 | 42% |
 
 
-
-
-Part 6: Objective Quality Metrics (PEAQ - Perceptual Evaluation of Audio Quality)
+## Part 6: Objective Quality Metrics (PEAQ - Perceptual Evaluation of Audio Quality)
 
 PEAQ ODG (Objective Difference Grade: 0=imperceptible, -4=very annoying)
 
@@ -2343,7 +2331,7 @@ PEAQ Interpretation: Hybrid scores 0.5-1.0 ODG points better than OGG, 1.0-1.5 
 
 
 
-Part 7: Spectrogram Analysis (Qualitative)
+## Part 7: Spectrogram Analysis (Qualitative)
 
 1 kHz Sine Wave + 3 kHz Harmonic
 
@@ -2369,10 +2357,7 @@ Speech Formants (300 Hz, 800 Hz, 2500 Hz)
 | OGG Vorbis | 32 kbps | 85% | Dull |
 | MP3 | 32 kbps | 78% | Harsh |
 
-
-
-
-Part 8: Frequency Response Accuracy
+## Part 8: Frequency Response Accuracy
 
 Frequency Roll-off at 20 kHz (ideal = 0 dB)
 
@@ -2393,10 +2378,7 @@ Low Frequency Accuracy (20-100 Hz)
 | OGG Vorbis | 192 kbps | 5° | 0.5 dB |
 | MP3 | 320 kbps | 8° | 1.0 dB |
 
-
-
-
-Part 9: Stereo Imaging Accuracy
+## Part 9: Stereo Imaging Accuracy
 
 Inter-channel Correlation Preservation
 
@@ -2407,7 +2389,7 @@ Inter-channel Correlation Preservation
 | MP3 | 128 kbps | 0.08 | 10% |
 | MP3 | 96 kbps | 0.12 | 15% |
 
-Phase Coherence (panned instrument at 30°)
+## Phase Coherence (panned instrument at 30°)
 
 | Codec | Bitrate | Panning Error | Phantom Center Shift |
 | --- | --- | --- | --- |
@@ -2415,10 +2397,7 @@ Phase Coherence (panned instrument at 30°)
 | OGG Vorbis | 96 kbps | 3° | 2° |
 | MP3 | 128 kbps | 5° | 4° |
 
-
-
-
-Part 10: Temporal Resolution & Transient Response
+## Part 10: Temporal Resolution & Transient Response
 
 Attack Time Accuracy (ms error)
 
@@ -2437,9 +2416,7 @@ Decay Time Accuracy (tailing)
 | MP3 | 128 kbps | 88% | 82% |
 
 
-
-
-Part 11: Bitrate Distribution Efficiency
+## Part 11: Bitrate Distribution Efficiency
 
 Bits spent on perceptually important vs unimportant content
 
@@ -2452,9 +2429,7 @@ Bits spent on perceptually important vs unimportant content
 Interpretation: Hybrid wastes fewer bits on masked content due to superior psychoacoustic model.
 
 
-
-
-Part 12: Encoding/Decoding Performance
+## Part 12: Encoding/Decoding Performance
 
 Encoding Speed (real-time factor - higher is faster)
 
@@ -2473,10 +2448,7 @@ Decoding Speed
 | OGG Vorbis | Any | 100× | Very Low | 0.7% |
 | Hybrid | Any | 25× | Medium | 4% |
 
-
-
-
-Part 13: File Size Comparison (1 hour, transparent quality)
+## Part 13: File Size Comparison (1 hour, transparent quality)
 
 | Audio Type | Hybrid (transparent) | OGG Vorbis | MP3 | Savings vs MP3 |
 | --- | --- | --- | --- | --- |
@@ -2487,9 +2459,7 @@ Part 13: File Size Comparison (1 hour, transparent quality)
 | EDM | 36 MB (80 kbps) | 58 MB (128 kbps) | 86 MB (192 kbps) | 58% |
 
 
-
-
-Part 14: Compatibility & Ecosystem Support
+## Part 14: Compatibility & Ecosystem Support
 
 | Feature | Hybrid | OGG | MP3 |
 | --- | --- | --- | --- |
@@ -2503,9 +2473,7 @@ Part 14: Compatibility & Ecosystem Support
 | Streaming support | ✓ | ✓ | ✓ |
 
 
-
-
-Part 15: Summary Comparison Table
+## Part 15: Summary Comparison Table
 
 | Criteria | Hybrid Compressor | OGG Vorbis | MP3 |
 | --- | --- | --- | --- |
@@ -2521,10 +2489,7 @@ Part 15: Summary Comparison Table
 | Hardware support | None | Limited | Universal |
 | Best use case | Archiving, low-bitrate | Streaming | Universal playback |
 
-
-
-
-Final Verdict
+## Final Verdict
 
 Hybrid Compressor Wins When:
 
@@ -2569,7 +2534,7 @@ Here is a simple comparison table showing estimated performance across audio t
 
 
 
-Audio Compression Comparison Table
+## Audio Compression Comparison Table
 
 | Audio Type | Original Size (1 min CD) | FLAC (Lossless) | MP3 (128 kbps) | AAC (128 kbps) | Opus (96 kbps) | Hybrid 6-Mode (Standard) | Hybrid 6-Mode (Mobile) |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -2587,7 +2552,7 @@ Audio Compression Comparison Table
 
 
 
-Quality Score Comparison (MOS 1-5)
+## Quality Score Comparison (MOS 1-5)
 
 | Audio Type | FLAC | MP3 (128) | AAC (128) | Opus (96) | Hybrid (Standard) | Hybrid (Mobile) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -2605,7 +2570,7 @@ Quality Score Comparison (MOS 1-5)
 
 
 
-Compression Ratio Summary (1 min CD = 10.6 MB)
+## Compression Ratio Summary (1 min CD = 10.6 MB)
 
 | Compressor | Speech | Pop Music | Classical | EDM | Ambient | Drums |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -2619,7 +2584,7 @@ Compression Ratio Summary (1 min CD = 10.6 MB)
 
 
 
-Best Use Cases by Compressor
+## Best Use Cases by Compressor
 
 | Compressor | Best For | Weakness |
 | --- | --- | --- |
@@ -2647,7 +2612,7 @@ Hybrid Mode Selection by Audio Type
 
 
 
-Byte Size Comparison (60-second clip)
+## Byte Size Comparison (60-second clip)
 
 | Audio Type | PCM | FLAC | MP3 | AAC | Opus | Hybrid Std | Hybrid Mobile |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -2661,7 +2626,7 @@ Byte Size Comparison (60-second clip)
 
 
 
-Key Takeaways
+## Key Takeaways
 
 1. Hybrid compressor beats all others on speech (28-44:1 vs 11-15:1)
 2. Hybrid compressor beats all others on EDM (23.6:1 vs 14.7:1)
@@ -2676,7 +2641,7 @@ Key Takeaways
 
 The hybrid compressor achieves 2-4× better compression than MP3/AAC/Opus for speech, EDM, and ambient while maintaining equal or better perceptual quality.
 
-Lossless Mode Performance Listing
+## Lossless Mode Performance Listing
 
 Here is a comprehensive listing of the Hybrid Compressor's lossless modes compared to other lossless codecs across multiple audio types.
 
@@ -4125,7 +4090,7 @@ Key Features Added:
 
 The compressor achieves excellent perceptual quality by hiding quantization noise under psychoacoustic masking thresholds, exactly as human hearing works!
 
-Polygon Image Compression
+# Polygon Image Compression
 
 The Polygon Image Compressor represents a fundamental departure from traditional block-based image compression algorithms. Instead of dividing images into fixed-size blocks and applying frequency transforms, this approach first analyzes the image content to identify meaningful geometric structures. The process begins with edge detection using a refined Canny operator that identifies boundaries between regions of differing color or texture. These edges form the skeleton of the image, and the algorithm then performs a constrained Delaunay triangulation that respects these edges, breaking the image into irregular triangles that naturally conform to the underlying shapes.
 
