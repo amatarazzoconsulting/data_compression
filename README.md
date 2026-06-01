@@ -9085,6 +9085,7 @@ For talking head content (most video conferencing, lectures, news), it's 5-10x b
 
 File Size Comparison (1 hour of content)
 
+```
 #pragma once
 #include <cstdint>
 #include <vector>
@@ -11991,7 +11992,7 @@ inline std::vector<uint8_t> compress_aggressive(const std::vector<Color>& image,
 
 }
 } // namespace organic_codec
-
+```
 
 ## Conclusion
 
