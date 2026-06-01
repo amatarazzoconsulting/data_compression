@@ -5603,16 +5603,15 @@ void demonstratePolygonCompression() {
 
 ```
 
-Organic Image Compression
+# Organic Image Compression
 
-Path Based Lossless and Near Lossless Image Compression
+## Path Based Lossless and Near Lossless Image Compression
 
-Organic Image Codec: Comprehensive Technical Analysis
-
-
+## Organic Image Codec: Comprehensive Technical Analysis
 
 
-Introduction
+
+## Introduction
 
 The Organic Image Codec represents a fundamental reimagining of how images can be compressed. Unlike conventional codecs that apply fixed mathematical transforms universally across entire images, the Organic Codec employs an adaptive, region-aware architecture that dynamically selects optimal encoding strategies based on local image characteristics. This approach draws inspiration from biological visual systems, which process different regions of the visual field using specialized pathways optimized for local properties such as texture, edge orientation, and color distribution.
 
@@ -5627,11 +5626,9 @@ The implementation is provided as a single-header C++17 library with no external
 This document provides a comprehensive analysis of the algorithm's operation, presents simulated compression results across multiple image categories, compares performance against industry-standard codecs, and draws conclusions about optimal use cases and future development directions.
 
 
+## Algorithm
 
-
-Algorithm
-
-Stage One: Entropy-Aware Triangular Region Decomposition
+### Stage One: Entropy-Aware Triangular Region Decomposition
 
 The algorithm begins by analyzing the global entropy distribution across the entire image canvas. Unlike block-based codecs such as JPEG that pre-define partition sizes (typically 8×8 or 16×16 pixel blocks), the Organic Codec constructs an adaptive triangular mesh that conforms to the image's natural boundaries. Triangles are chosen over rectangles because they better approximate gradients and diagonal features without the axis-alignment bias that causes blocking artifacts in DCT-based codecs.
 
@@ -5643,7 +5640,7 @@ Each triangle maintains metadata about its color distribution, including the mea
 
 The triangular representation also enables efficient storage of region boundaries. Instead of storing explicit pixel masks, each region is defined by three vertex coordinates, which can be delta-encoded relative to the image dimensions. For a 1920×1080 image, each vertex requires at most 11 bits per coordinate (since 2^11 = 2048), so a triangle's geometry overhead is approximately 66 bits.
 
-Stage Two: Perceptual Palette Construction and Symbol Reduction
+### Stage Two: Perceptual Palette Construction and Symbol Reduction
 
 Once the region decomposition is complete, each triangle independently builds a palette of representative colors. This stage implements the second multiplicative entropy reduction: shrinking the alphabet from 16.7 million possible RGB values to typically 16-256 colors per region, depending on the image content and compression mode.
 
@@ -5659,7 +5656,7 @@ The palette itself is then optimized for encoding. Colors are sorted by perceptu
 
 For lossy modes, the algorithm also performs adaptive palette sizing based on region complexity. Smooth gradient regions receive larger palettes (up to 256 colors) to prevent banding, while textured regions receive smaller palettes (as few as 16 colors) because small color errors are masked by the texture. This adaptive strategy optimizes the trade-off between palette overhead and reconstruction quality.
 
-Stage Three: Directional Path Construction and Gradient Following
+### Stage Three: Directional Path Construction and Gradient Following
 
 With symbols representing each pixel, the algorithm now addresses spatial redundancy—the tendency of neighboring pixels to have similar or identical values. Traditional raster scans break coherence at row boundaries because pixels that are vertically adjacent become far apart in the scan order, destroying correlations that could otherwise be exploited by predictive coding.
 
@@ -5673,7 +5670,7 @@ The path-building algorithm uses a greedy approach starting from the lowest-grad
 
 The resulting path is stored as a sequence of 8-directional moves, encoding cardinal and diagonal directions using 3 bits per step. For very smooth regions, the path may be nearly straight, and run-length encoding of identical directions provides additional compression. For typical triangles of 100-1000 pixels, the direction overhead is 300-3000 bits, which is amortized over the compression gains from improved symbol correlation.
 
-Stage Four: Multi-Mode Predictive Transform
+#### Stage Four: Multi-Mode Predictive Transform
 
 With symbols ordered along the directional path, the algorithm applies prediction to exploit local correlations. The predictor uses previously decoded symbols to estimate the current symbol, producing a residual that is typically small or zero. This stage represents the third multiplicative entropy reduction: collapsing the symbol stream into a near-zero distribution that entropy coding can compress extremely efficiently.
 
@@ -5689,7 +5686,7 @@ Directional prediction uses the path's direction information to select an approp
 
 Each region independently selects its prediction mode based on rate-distortion optimization. The algorithm encodes the region with each candidate mode, computes the resulting distortion and rate, then chooses the mode minimizing the cost function J = rate + λ × distortion. The λ parameter trades off compression ratio against quality, allowing the codec to operate from lossless to very lossy compression.
 
-Stage Five: XOR and Delta Transforms
+#### Stage Five: XOR and Delta Transforms
 
 After initial prediction, the residual stream may still contain structure that can be further reduced. The XOR transform applies a bitwise exclusive-or operation between consecutive residual values. This transform is particularly effective for residuals that alternate in sign or pattern, as XOR tends to produce zeros when the pattern has even symmetry.
 
@@ -5697,7 +5694,7 @@ The delta transform computes differences between consecutive residuals, creating
 
 These transforms are applied selectively based on measured entropy reduction. The algorithm tests both transforms on the residual stream and applies them only if they reduce estimated entropy by at least 10 percent. Transform application is signaled in the control stream using single-bit flags, ensuring overhead does not outweigh benefits for incompressible streams.
 
-Stage Six: Stream Separation and Parallelization
+#### Stage Six: Stream Separation and Parallelization
 
 A key architectural decision is the separation of data into distinct streams with different statistical properties. The control stream contains mode selections, palette sizes, transform flags, and path directions—typically less than 1 percent of total compressed size but critical for correct decoding. The symbol stream contains the primary encoded values and is the largest component. The residual stream contains prediction residuals and often contains many zeros. The palette stream contains the delta-encoded color table.
 
@@ -5705,7 +5702,7 @@ Stream separation enables specialized entropy coding for each stream. The symbol
 
 Separation also enables parallel decoding. Because each region's streams are independently decodable, a multi-core decoder can process multiple regions simultaneously. This parallelism is increasingly important as CPU core counts grow, and it gives the Organic Codec a potential speed advantage over codecs with global dependencies like arithmetic coding in JPEG 2000.
 
-Stage Seven: Context-Adaptive ANS Entropy Coding
+#### Stage Seven: Context-Adaptive ANS Entropy Coding
 
 The final compression stage uses ANS (Asymmetric Numeral Systems) entropy coding with deep context modeling. ANS combines the compression ratio of arithmetic coding with the speed of Huffman coding, making it ideal for modern processors where arithmetic coding's division operations are expensive. The implementation uses 32-bit state variables and renormalization to prevent overflow.
 
@@ -5715,7 +5712,7 @@ For each symbol to be encoded, the context model computes the conditional probab
 
 The entropy coding stage is notably different from traditional codecs. In JPEG, entropy coding is the primary compression mechanism, accounting for most of the size reduction. In the Organic Codec, entropy coding is a cleanup stage that typically achieves only 20-30 percent additional reduction—the earlier stages have already removed most redundancy. This is a deliberate design choice that moves complexity from entropy coding to geometric and predictive modeling.
 
-Stage Eight: Perceptual Rate-Distortion Optimization
+#### Stage Eight: Perceptual Rate-Distortion Optimization
 
 Throughout the encoding process, perceptual rate-distortion optimization guides all major decisions. The distortion metric is not simple squared error but a perceptual metric that weights errors according to human visual sensitivity. Luminance errors are weighted more heavily than chrominance errors because the human eye has higher spatial resolution for brightness than for color.
 
@@ -5728,7 +5725,7 @@ The RDO loop tests multiple encoding strategies per region: different palette si
 
 
 
-Comparison
+####Comparison
 
 Flat UI Graphics and Screenshots
 
@@ -5740,7 +5737,7 @@ PNG, the current standard for UI screenshots, typically compresses the same imag
 
 The practical impact is substantial. For a web application with 100 screenshot assets, PNG would require approximately 52 MB of bandwidth, while the Organic Codec would require only 5.2 MB. This difference translates directly into faster page loads, lower hosting costs, and improved user experiences on mobile networks.
 
-Gradients and Digital Art
+### Gradients and Digital Art
 
 Gradient images and digital art present a different challenge: smooth color transitions with limited palettes but continuous variation that challenges both palette-based and predictive codecs. The Organic Codec achieves 25× to 80× compression, reducing raw 5-10 bits per pixel to 0.3-0.9 bits per pixel.
 
@@ -5750,7 +5747,7 @@ PNG on the same image typically requires 5-8 bits per pixel due to its poor hand
 
 The gradient performance gap exists because PNG's filtering and DEFLATE compression struggle with the per-byte changes in smooth gradients, which appear random to DEFLATE's pattern matching. The Organic Codec's directional prediction along the gradient direction creates residual streams where values change slowly and predictably, enabling much better compression.
 
-Natural Photographs
+### Natural Photographs
 
 Natural photographs test the codec's limits. With 12-18 bits per pixel of raw entropy, complex textures, and unpredictable color distributions, photographs are the hardest domain. The Organic Codec achieves 4× to 9× compression, reducing to 2.5-5.5 bits per pixel.
 
@@ -5760,7 +5757,7 @@ PNG lossless on the same photograph typically requires 10-14 bits per pixel. At 
 
 For lossy compression at visually lossless quality, the comparison shifts. JPEG at quality 95 (visually lossless) achieves 2-3 bits per pixel, or 0.5-0.78 MB (8-12× compression). WebP at quality 90 achieves 1.5-2.5 bits per pixel, or 0.39-0.65 MB (9.5-16× compression). AVIF at quality 90 achieves 1-2 bits per pixel, or 0.26-0.52 MB (12-24× compression). The Organic Codec's lossy mode at perceptual quality 90 achieves 1.5-3 bits per pixel, or 0.39-0.78 MB (8-16× compression), placing it between WebP and AVIF.
 
-High-Frequency Textures and Noise
+### High-Frequency Textures and Noise
 
 High-frequency textures—fabric, foliage, fur, grain, noise—represent the worst-case scenario for the Organic Codec. Raw entropy reaches 16-23 bits per pixel, and even advanced codecs struggle. The codec achieves only 2× to 3× compression, reducing to 7-12 bits per pixel.
 
@@ -5770,7 +5767,7 @@ PNG on the same texture requires 14-18 bits per pixel, or 3.6-4.7 MB (1.3-1.7× 
 
 The limitation is fundamental: the codec's assumptions of spatial coherence, limited palettes, and directional flow break down on stochastic textures. For applications involving many textures, such as nature photography or scanned documents with textured backgrounds, the Organic Codec is not optimal.
 
-Text and Documents
+### Text and Documents
 
 Text images are the ideal case for the Organic Codec. Black text on white background has only two colors, perfect for palette reduction. Horizontal and vertical paths follow reading order. The residual stream contains zeros except at line breaks and character boundaries.
 
@@ -5778,7 +5775,7 @@ Consider an 8.5×11 inch document scanned at 300 DPI, resulting in 2550×3300 pi
 
 PNG on the same document typically achieves 0.5-1 bits per pixel, or 526,000-1,052,000 bytes (0.5-1 MB), 6-13× larger. PDF with JBIG2 compression (optimized for text) achieves 0.1-0.2 bits per pixel, or 105,000-210,000 bytes (0.1-0.2 MB), still 1.3-2.6× larger than the Organic Codec. The codec's text performance is best-in-class, approaching the theoretical entropy limit for bilevel images with occasional grayscale antialiasing.
 
-Mixed Content (UI + Photos + Text)
+### Mixed Content (UI + Photos + Text)
 
 Real-world images often contain mixed content—a webpage screenshot might include UI elements, photographs, text, and gradients. The Organic Codec's region-aware architecture excels at mixed content because each region independently selects its optimal encoding strategy.
 
@@ -5786,7 +5783,7 @@ Consider a 1920×1080 webpage screenshot with a photograph banner (30 percent of
 
 PNG on the same mixed content would average 3-5 bits per pixel (0.78-1.3 MB, 5-8× compression). WebP lossless would average 2-4 bits per pixel (0.52-1.04 MB, 6-12× compression). AVIF lossless would average 1.5-3 bits per pixel (0.39-0.78 MB, 8-16× compression). The Organic Codec's 30× compression represents a significant improvement over all competitors for mixed content.
 
-Summary Comparison Table
+### Summary Comparison Table
 
 | Image Type | Raw Size (MB) | PNG | WebP Lossless | AVIF Lossless | Organic Lossless | Organic Perceptual (90) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -5797,7 +5794,7 @@ Summary Comparison Table
 | 8.5×11 Document | 25.5 | 1.05 MB | 0.78 MB | 0.52 MB | 0.08 MB | 0.05 MB |
 | Mixed Webpage | 6.2 | 1.04 MB | 0.78 MB | 0.52 MB | 0.21 MB | 0.13 MB |
 
-Speed Comparison
+### Speed Comparison
 
 Encoding speed varies significantly between codecs. The Organic Codec's region splitting and RDO loops make it slower than PNG but comparable to WebP and AVIF for lossless compression. On a modern 8-core CPU:
 
@@ -5807,7 +5804,7 @@ Encoding speed varies significantly between codecs. The Organic Codec's region s
 - Organic Codec lossless: 2.0-5.0 seconds
 - Organic Codec perceptual: 1.0-2.0 seconds
 
-Decoding speed is much faster and more competitive:
+### Decoding speed is much faster and more competitive:
 
 - PNG decoding: 0.1-0.2 seconds
 - WebP decoding: 0.1-0.3 seconds
@@ -5816,7 +5813,7 @@ Decoding speed is much faster and more competitive:
 
 The asymmetry (slow encode, fast decode) matches many use cases where images are compressed once and decompressed many times, such as web delivery, game assets, and archival storage.
 
-Comprehensive Compression Comparison Table
+## Comprehensive Compression Comparison Table
 
 Test Methodology
 
@@ -5826,7 +5823,7 @@ Compression ratios are calculated as: Raw Size / Compressed Size. All values ar
 
 ***
 
-Table 1: Flat UI Graphics (Screenshot of Desktop Application)
+## Table 1: Flat UI Graphics (Screenshot of Desktop Application)
 
 Characteristics: Large uniform color regions, sharp edges, limited palette (16-64 colors), text elements, buttons, panels.
 
@@ -5844,7 +5841,7 @@ Example: Windows 11 desktop screenshot with taskbar, icons, and open File Explo
 
 ***
 
-Table 2: Gradient Images (Smooth Color Transitions)
+## Table 2: Gradient Images (Smooth Color Transitions)
 
 Characteristics: Continuous color variation, no sharp edges, limited palette but smooth interpolation, sky gradients, 3D rendering.
 
@@ -5862,7 +5859,7 @@ Example: 1920×1080 gradient from deep blue to bright orange (sunset sky render
 
 ***
 
-Table 3: Digital Art / Illustration
+## Table 3: Digital Art / Illustration
 
 Characteristics: Mixed flat areas and gradients, sharp lines, limited palette (64-128 colors), cell shading, anime-style art.
 
@@ -5880,7 +5877,7 @@ Example: 1080p anime-style character illustration with cel shading and gradient
 
 ***
 
-Table 4: Natural Photographs (Landscape)
+## Table 4: Natural Photographs (Landscape)
 
 Characteristics: Complex textures, continuous color distribution, high entropy, sky, trees, water, rocks, clouds.
 
@@ -5901,7 +5898,7 @@ Example: Mountain landscape with blue sky, green trees, gray rocks, and white c
 
 ***
 
-Table 5: Portrait Photography (Human Face)
+## Table 5: Portrait Photography (Human Face)
 
 Characteristics: Skin tones, gradual shading, hair texture, eyes with detail, moderate entropy.
 
@@ -5922,7 +5919,7 @@ Example: Front-facing portrait with smooth skin, hair, eyes, and neutral backgr
 
 ***
 
-Table 6: High-Frequency Textures (Fabric / Foliage)
+## Table 6: High-Frequency Textures (Fabric / Foliage)
 
 Characteristics: Stochastic patterns, high entropy, fine detail, no large uniform areas, grass, fabric weave, fur.
 
@@ -5943,7 +5940,7 @@ Example: Close-up photograph of woven wool fabric or dense tree foliage.
 
 ***
 
-Table 7: Text and Documents (Scanned Page)
+## Table 7: Text and Documents (Scanned Page)
 
 Characteristics: Binary-like (black text on white), sharp edges, high contrast, 2550×3300 pixel scan (8.5"×11" at 300 DPI).
 
@@ -5964,7 +5961,7 @@ Example: 300 DPI scan of a typed letter with black text on white paper, no imag
 
 ***
 
-Table 8: Icon / Sprite Sheet (512×512 Grid of Icons)
+## Table 8: Icon / Sprite Sheet (512×512 Grid of Icons)
 
 Characteristics: Very small image, repeated elements, limited palette, sharp edges. 512×512 pixels = 262,144 pixels. Raw size = 786,432 bytes (0.79 MB).
 
@@ -5981,7 +5978,7 @@ Example: 512×512 sprite sheet containing 64 64×64 game icons (limited palette
 
 ***
 
-Table 9: Medical Image (X-Ray / MRI, 12-bit Grayscale)
+## Table 9: Medical Image (X-Ray / MRI, 12-bit Grayscale)
 
 Characteristics: High bit depth (12-bit), large uniform areas (tissue, bone, air), sharp boundaries, lossless required. 1024×1024 pixels × 2 bytes = 2,097,152 bytes (2.10 MB) raw.
 
@@ -5997,7 +5994,7 @@ Example: Chest X-ray or brain MRI scan (simulated as 8-bit RGB for comparison).
 
 ***
 
-Table 10: Satellite / Aerial Imagery
+## Table 10: Satellite / Aerial Imagery
 
 Characteristics: Large uniform areas (water, desert), fine detail (buildings, roads), multi-spectral. 4096×4096 pixels (16.8 megapixels). Raw size = 50,331,648 bytes (50.3 MB).
 
@@ -6014,7 +6011,7 @@ Example: Satellite photo of coastal area with ocean, beach, city, and vegetatio
 
 ***
 
-Table 11: Mixed Content (Webpage Screenshot with Banner Ad)
+## Table 11: Mixed Content (Webpage Screenshot with Banner Ad)
 
 Characteristics: 30% photograph (banner ad), 40% UI panels, 20% text, 10% gradients. 1920×1080 pixels.
 
@@ -6032,7 +6029,7 @@ Example: News website screenshot with article text, photograph banner, navigati
 
 ***
 
-Table 12: Video Game Screenshot (3D Game)
+## Table 12: Video Game Screenshot (3D Game)
 
 Characteristics: 3D rendering with textures, HUD elements, text, skybox, shadows, post-processing effects.
 
@@ -6049,7 +6046,7 @@ Example: Cyberpunk 2077 gameplay screenshot with HUD, character model, building
 
 ***
 
-Table 13: Summary Comparison Across All Content Types
+## Table 13: Summary Comparison Across All Content Types
 
 | Content Type | PNG Ratio | WebP Ratio | AVIF Ratio | Organic Lossless Ratio | Organic Perceptual Ratio |
 | --- | --- | --- | --- | --- | --- |
@@ -6068,7 +6065,7 @@ Table 13: Summary Comparison Across All Content Types
 
 ***
 
-Table 14: Absolute File Size Comparison (1920×1080, KB)
+## Table 14: Absolute File Size Comparison (1920×1080, KB)
 
 | Content Type | Raw (KB) | PNG (KB) | WebP (KB) | AVIF (KB) | Organic Lossless (KB) | Organic Perceptual (KB) |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -6092,12 +6089,9 @@ Key Observations
 5. Document Compression: For scanned documents, the Organic Codec achieves 300× compression (84 KB for a 25 MB raw scan), outperforming JBIG2 by nearly 2×.
 6. Perceptual Mode: Perceptual lossy at Q95 provides 30-50% additional compression over lossless with visually identical results for most content.
 7. Small Images: For icons and sprites, the Organic Codec's overhead becomes significant below 128×128 pixels, but still outperforms PNG by 20×.
-8. 
 
 
-
-
-Conclusion
+## Conclusion
 
 The Organic Image Codec represents a significant advancement in compression technology for structured and graphical content. Its multi-stage cascade of entropy reduction—region segmentation, palette reduction, directional prediction, transforms, and context-adaptive entropy coding—achieves compression ratios that surpass industry-standard codecs on flat UI, gradients, text, and mixed content by factors of 3× to 10×.
 
@@ -6115,3016 +6109,1288 @@ Future development directions include GPU acceleration for encoding, which could
 
 In conclusion, the Organic Image Codec fills a critical gap in the compression landscape: high-ratio lossless compression for synthetic and mixed-content images. For the growing fraction of digital content that is computer-generated—screenshots, UI assets, digital art, documents, and mixed web content—the codec offers compelling advantages over existing solutions. As display resolutions continue to increase and bandwidth costs remain significant, these advantages translate directly into better user experiences and lower operating costs. The codec is ready for integration into production systems and represents a solid foundation for continued research and development in adaptive image compression.
 
-
+```javascript
 #pragma once
-
 #include <cstdint>
-
 #include <vector>
-
 #include <cmath>
-
 #include <algorithm>
-
 #include <unordered\_map>
-
 #include <queue>
-
 #include <array>
-
 #include <memory>
-
 #include <cstring>
-
 #include <bitset>
-
 #include <numeric>
-
 #include <limits>
-
 namespace organic\_codec {
-
 // ============================================================================
-
 // PERCEPTUAL CONFIGURATION
-
 // ============================================================================
-
 enum class CompressionMode : uint8\_t {
-
     LOSSLESS = 0,           // Maximum compression, perfect reconstruction
-
     PERCEPTUAL\_LOSSY = 1,   // Human-optimized lossy, invisible errors
-
     AGGRESSIVE\_LOSSY = 2    // Higher compression, visible but acceptable errors
-
 };
-
 struct PerceptualConfig {
-
     // Luminance sensitivity (human eye is more sensitive to luminance than chrominance)
-
     float luminance\_weight = 1.0f;
-
     float chrominance\_weight = 0.5f;
-
-    
-
     // Contrast masking (errors are less visible in high-contrast areas)
-
     bool enable\_contrast\_masking = true;
-
     float contrast\_threshold = 0.1f;
-
-    
-
     // Frequency sensitivity (errors are less visible in textured areas)
-
     bool enable\_frequency\_sensitivity = true;
-
     float high\_freq\_mask = 0.3f;
-
     float low\_freq\_sensitivity = 1.0f;
-
-    
-
     // Just Noticeable Difference (JND) thresholds
-
     float jnd\_luminance = 2.0f;    // 2 units in 0-255 range
-
     float jnd\_chrominance = 4.0f;   // 4 units for color
-
-    
-
     // Temporal/spatial pooling
-
     bool enable\_pooling = true;
-
     float pooling\_window = 8.0f;     // pixels
-
-    
-
     // Quality factor (0-100, higher = better quality)
-
     int quality = 90;
-
-    
-
     PerceptualConfig() {
-
         update\_from\_quality();
-
     }
-
-    
-
     void update\_from\_quality() {
-
         // Quality mapping: 0-100 -> perceptual thresholds
-
         float q = std::clamp(float(quality) / 100.0f, 0.01f, 1.0f);
-
         jnd\_luminance = 2.0f \* (1.0f - q \* 0.8f);
-
         jnd\_chrominance = 4.0f \* (1.0f - q \* 0.7f);
-
         high\_freq\_mask = 0.3f + q \* 0.5f;
-
     }
-
 };
-
 // ============================================================================
-
 // MAIN CONFIGURATION
-
 // ============================================================================
-
 struct Config {
-
     // Mode selection
-
     CompressionMode mode = CompressionMode::LOSSLESS;
-
     PerceptualConfig perceptual;
-
-    
-
     // Region formation (entropy-aware splitting)
-
     int min\_region\_size = 8;
-
     float entropy\_threshold = 0.5f;
-
     int max\_palette\_size = 256;
-
     int max\_region\_depth = 8;
-
-    
-
     // Feature toggles
-
     bool enable\_region\_model = true;
-
     bool enable\_palette\_reduction = true;
-
     bool enable\_directional\_prediction = true;
-
     bool enable\_xor\_transform = true;
-
     bool enable\_delta\_transform = true;
-
     bool enable\_palette\_delta\_encoding = true;
-
     bool enable\_residual\_separation = true;
-
     bool enable\_context\_adaptation = true;
-
     bool enable\_rdo = true;
-
     bool enable\_gradient\_prediction = true;
-
     bool enable\_adaptive\_path = true;
-
-    
-
     // Compression control
-
     float lambda = 0.05f;
-
     bool near\_lossless = false;
-
     float near\_lossless\_tolerance = 2.0f;
-
-    
-
     // Entropy coding
-
     int ans\_precision = 12;
-
     int context\_depth = 3;
-
-    
-
     // Lossless-specific (maximum compression)
-
     bool lossless\_use\_deep\_context = true;
-
     bool lossless\_use\_all\_predictors = true;
-
     int lossless\_max\_palette = 256;
-
-    
-
     // Lossy-specific (perceptual optimization)
-
     float perceptual\_lambda\_multiplier = 1.0f;
-
     bool enable\_adaptive\_quantization = true;
-
-    
-
     // Helper to configure for maximum lossless compression
-
     static Config max\_lossless() {
-
         Config cfg;
-
         cfg.mode = CompressionMode::LOSSLESS;
-
         cfg.entropy\_threshold = 0.3f;           // More aggressive splitting
-
         cfg.max\_palette\_size = 256;             // Maximum palette
-
         cfg.enable\_xor\_transform = true;
-
         cfg.enable\_delta\_transform = true;
-
         cfg.enable\_palette\_delta\_encoding = true;
-
         cfg.enable\_context\_adaptation = true;
-
         cfg.context\_depth = 3;                  // Deep context
-
         cfg.lossless\_use\_deep\_context = true;
-
         cfg.lossless\_use\_all\_predictors = true;
-
         return cfg;
-
     }
-
-    
-
     // Helper to configure for perceptual lossy (invisible errors)
-
     static Config perceptual\_lossy(int quality = 90) {
-
         Config cfg;
-
         cfg.mode = CompressionMode::PERCEPTUAL\_LOSSY;
-
         cfg.perceptual.quality = quality;
-
         cfg.perceptual.update\_from\_quality();
-
         cfg.entropy\_threshold = 0.5f;
-
         cfg.max\_palette\_size = std::max(64, quality \* 2);
-
         cfg.near\_lossless = true;
-
         cfg.near\_lossless\_tolerance = cfg.perceptual.jnd\_luminance;
-
         cfg.lambda = 0.05f \* (1.0f - quality / 100.0f);
-
         cfg.enable\_adaptive\_quantization = true;
-
         return cfg;
-
     }
-
-    
-
     // Helper to configure for aggressive lossy
-
     static Config aggressive\_lossy(int quality = 70) {
-
         Config cfg = perceptual\_lossy(quality);
-
         cfg.mode = CompressionMode::AGGRESSIVE\_LOSSY;
-
         cfg.max\_palette\_size = std::max(32, quality);
-
         cfg.near\_lossless\_tolerance = cfg.perceptual.jnd\_luminance \* 2.0f;
-
         cfg.lambda = 0.2f \* (1.0f - quality / 100.0f);
-
         return cfg;
-
     }
-
 };
-
 // ============================================================================
-
 // PERCEPTUAL METRICS (CIEDE2000 approximation)
-
 // ============================================================================
-
 class PerceptualMetric {
-
 public:
-
     // Convert RGB to LAB-like space for perceptual distance
-
     static void rgb\_to\_lab(const Color& c, float& L, float& a, float& b) {
-
         // Convert to XYZ (D65 illuminant)
-
         float r = c.r / 255.0f;
-
         float g = c.g / 255.0f;
-
         float b\_ = c.b / 255.0f;
-
-        
-
         r = (r > 0.04045f) ? std::pow((r + 0.055f) / 1.055f, 2.4f) : r / 12.92f;
-
         g = (g > 0.04045f) ? std::pow((g + 0.055f) / 1.055f, 2.4f) : g / 12.92f;
-
         b\_ = (b\_ > 0.04045f) ? std::pow((b\_ + 0.055f) / 1.055f, 2.4f) : b\_ / 12.92f;
-
-        
-
         float x = r \* 0.4124564f + g \* 0.3575761f + b\_ \* 0.1804375f;
-
         float y = r \* 0.2126729f + g \* 0.7151522f + b\_ \* 0.0721750f;
-
         float z = r \* 0.0193339f + g \* 0.1191920f + b\_ \* 0.9503041f;
-
-        
-
         // XYZ to LAB
-
         float xn = 0.95047f, yn = 1.0f, zn = 1.08883f;
-
         auto f = [](float t) {
-
             return (t > 0.008856f) ? std::cbrt(t) : (7.787f \* t + 16.0f / 116.0f);
-
         };
-
-        
-
         L = 116.0f \* f(y / yn) - 16.0f;
-
         a = 500.0f \* (f(x / xn) - f(y / yn));
-
         b = 200.0f \* (f(y / yn) - f(z / zn));
-
     }
-
-    
-
     // Perceptual distance (CIEDE2000 approximation)
-
     static float perceptual\_distance(const Color& c1, const Color& c2) {
-
         float L1, a1, b1, L2, a2, b2;
-
         rgb\_to\_lab(c1, L1, a1, b1);
-
         rgb\_to\_lab(c2, L2, a2, b2);
-
-        
-
         float dL = L1 - L2;
-
         float da = a1 - a2;
-
         float db = b1 - b2;
-
-        
-
         // Weighted Euclidean in LAB space
-
         return std::sqrt(dL\*dL + da\*da + db\*db);
-
     }
-
-    
-
     // Just Noticeable Difference (JND) threshold
-
     static bool is\_perceptible(const Color& c1, const Color& c2, float jnd\_threshold = 2.3f) {
-
         return perceptual\_distance(c1, c2) > jnd\_threshold;
-
     }
-
-    
-
     // Luminance-only perceptual error
-
     static float luminance\_error(const Color& c1, const Color& c2) {
-
         float lum1 = c1.luminance\_f();
-
         float lum2 = c2.luminance\_f();
-
         return std::abs(lum1 - lum2);
-
     }
-
-    
-
     // Contrast masking factor (errors less visible in high contrast)
-
     static float contrast\_mask(const std::vector<Color>& neighborhood) {
-
         if (neighborhood.empty()) return 1.0f;
-
-        
-
         float mean\_lum = 0.0f;
-
         for (const auto& c : neighborhood) {
-
             mean\_lum += c.luminance\_f();
-
         }
-
         mean\_lum /= neighborhood.size();
-
-        
-
         float variance = 0.0f;
-
         for (const auto& c : neighborhood) {
-
             float d = c.luminance\_f() - mean\_lum;
-
             variance += d \* d;
-
         }
-
         variance /= neighborhood.size();
-
-        
-
         // Higher variance = more masking = lower sensitivity
-
         float mask = 1.0f / (1.0f + variance \* 2.0f);
-
         return std::clamp(mask, 0.2f, 1.0f);
-
     }
-
-    
-
     // Frequency sensitivity (texture masking)
-
     static float frequency\_sensitivity(const std::vector<float>& gradients) {
-
         if (gradients.empty()) return 1.0f;
-
-        
-
         float mean\_grad = 0.0f;
-
         for (float g : gradients) mean\_grad += g;
-
         mean\_grad /= gradients.size();
-
-        
-
         // High frequency = less sensitivity
-
         return std::clamp(1.0f / (1.0f + mean\_grad \* 10.0f), 0.3f, 1.0f);
-
     }
-
 };
-
 // ============================================================================
-
 // BASIC TYPES
-
 // ============================================================================
-
 struct Color {
-
     uint8\_t r, g, b;
-
     Color() : r(0), g(0), b(0) {}
-
     Color(uint8\_t \_r, uint8\_t \_g, uint8\_t \_b) : r(\_r), g(\_g), b(\_b) {}
-
-    
-
     uint32\_t to\_rgb32() const { return (r << 16) | (g << 8) | b; }
-
-    
-
     Color operator-(const Color& other) const {
-
         return Color(abs(r - other.r), abs(g - other.g), abs(b - other.b));
-
     }
-
-    
-
     Color operator^(const Color& other) const {
-
         return Color(r ^ other.r, g ^ other.g, b ^ other.b);
-
     }
-
-    
-
     bool operator==(const Color& other) const {
-
         return r == other.r && g == other.g && b == other.b;
-
     }
-
-    
-
     int luminance() const { return r + g + b; }
-
     float luminance\_f() const { return (r + g + b) / 3.0f; }
-
 };
-
 struct Vec2 {
-
     int x, y;
-
     Vec2() : x(0), y(0) {}
-
     Vec2(int \_x, int \_y) : x(\_x), y(\_y) {}
-
-    
-
     Vec2 operator+(const Vec2& other) const { return Vec2(x + other.x, y + other.y); }
-
     Vec2 operator-(const Vec2& other) const { return Vec2(x - other.x, y - other.y); }
-
     bool operator==(const Vec2& other) const { return x == other.x && y == other.y; }
-
 };
-
 struct Triangle {
-
     Vec2 v0, v1, v2;
-
-    
-
     bool contains(int x, int y) const {
-
         auto sign = [](int x1, int y1, int x2, int y2, int x3, int y3) {
-
             return (x1 - x3) \* (y2 - y3) - (x2 - x3) \* (y1 - y3);
-
         };
-
         int d1 = sign(x, y, v0.x, v0.y, v1.x, v1.y);
-
         int d2 = sign(x, y, v1.x, v1.y, v2.x, v2.y);
-
         int d3 = sign(x, y, v2.x, v2.y, v0.x, v0.y);
-
         bool has\_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-
         bool has\_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-
         return !(has\_neg && has\_pos);
-
     }
-
-    
-
     Vec2 centroid() const {
-
         return Vec2((v0.x + v1.x + v2.x) / 3, (v0.y + v1.y + v2.y) / 3);
-
     }
-
-    
-
     int area() const {
-
         return abs((v1.x - v0.x) \* (v2.y - v0.y) - 
-
                    (v2.x - v0.x) \* (v1.y - v0.y)) / 2;
-
     }
-
-    
-
     void get\_bounds(int& min\_x, int& max\_x, int& min\_y, int& max\_y) const {
-
         min\_x = std::min({v0.x, v1.x, v2.x});
-
         max\_x = std::max({v0.x, v1.x, v2.x});
-
         min\_y = std::min({v0.y, v1.y, v2.y});
-
         max\_y = std::max({v0.y, v1.y, v2.y});
-
     }
-
 };
-
 // ============================================================================
-
 // COLOR METRICS
-
 // ============================================================================
-
 inline int color\_distance\_squared(const Color& a, const Color& b) {
-
     int dr = int(a.r) - int(b.r);
-
     int dg = int(a.g) - int(b.g);
-
     int db = int(a.b) - int(b.b);
-
     return dr\*dr + dg\*dg + db\*db;
-
 }
-
 inline float color\_distance(const Color& a, const Color& b) {
-
     return std::sqrt(float(color\_distance\_squared(a, b)));
-
 }
-
 // ============================================================================
-
 // ENTROPY CALCULATOR
-
 // ============================================================================
-
 class EntropyCalculator {
-
 public:
-
     static float compute\_entropy(const std::vector<uint32\_t>& symbols) {
-
         if (symbols.empty()) return 0.0f;
-
-        
-
         std::unordered\_map<uint32\_t, int> freq;
-
         for (auto s : symbols) freq[s]++;
-
-        
-
         float entropy = 0.0f;
-
         float total = float(symbols.size());
-
         for (auto& [sym, count] : freq) {
-
             float p = count / total;
-
             entropy -= p \* std::log2(p);
-
         }
-
         return entropy;
-
     }
-
-    
-
     static float compute\_color\_entropy(const std::vector<Color>& colors) {
-
         if (colors.empty()) return 0.0f;
-
-        
-
         std::unordered\_map<uint32\_t, int> freq;
-
         for (auto& c : colors) freq[c.to\_rgb32()]++;
-
-        
-
         float entropy = 0.0f;
-
         float total = float(colors.size());
-
         for (auto& [sym, count] : freq) {
-
             float p = count / total;
-
             entropy -= p \* std::log2(p);
-
         }
-
         return entropy;
-
     }
-
 };
-
 // ============================================================================
-
 // PERCEPTUAL RDO (Rate-Distortion Optimization with perceptual weights)
-
 // ============================================================================
-
 class PerceptualRDO {
-
 public:
-
     PerceptualRDO(const Config& cfg) : config(cfg) {}
-
-    
-
     // Perceptual distortion metric
-
     float compute\_distortion(const Color& original, const Color& reconstructed,
-
                              const std::vector<Color>& neighborhood = {}) {
-
         if (config.mode == CompressionMode::LOSSLESS) {
-
             // Lossless: exact match required
-
             return (original == reconstructed) ? 0.0f : 1e6f;
-
         }
-
-        
-
         // Lossy: perceptual distance
-
         float perceptual\_dist = PerceptualMetric::perceptual\_distance(original, reconstructed);
-
-        
-
         // Apply luminance weighting
-
         float lum\_weight = config.perceptual.luminance\_weight;
-
         float lum\_orig = original.luminance\_f();
-
         if (lum\_orig < 0.1f || lum\_orig > 0.9f) {
-
             // Dark and bright areas have lower sensitivity
-
             lum\_weight \*= 0.7f;
-
         }
-
-        
-
         // Apply contrast masking
-
         float contrast\_mask = 1.0f;
-
         if (config.perceptual.enable\_contrast\_masking && !neighborhood.empty()) {
-
             contrast\_mask = PerceptualMetric::contrast\_mask(neighborhood);
-
         }
-
-        
-
         // Apply frequency sensitivity
-
         float freq\_sensitivity = 1.0f;
-
         if (config.perceptual.enable\_frequency\_sensitivity) {
-
             // Simplified: use local gradient as frequency proxy
-
             float grad = 0.0f;
-
             for (size\_t i = 1; i < std::min(size\_t(4), neighborhood.size()); i++) {
-
                 grad += std::abs(neighborhood[i].luminance\_f() - neighborhood[i-1].luminance\_f());
-
             }
-
             grad = grad / std::min(size\_t(4), neighborhood.size());
-
             freq\_sensitivity = 1.0f / (1.0f + grad \* 5.0f);
-
         }
-
-        
-
         float weighted\_dist = perceptual\_dist \* lum\_weight \* contrast\_mask \* freq\_sensitivity;
-
-        
-
         // JND thresholding: errors below JND are invisible
-
         if (weighted\_dist < config.perceptual.jnd\_luminance) {
-
             weighted\_dist \*= 0.1f;  // heavily discount invisible errors
-
         }
-
-        
-
         return weighted\_dist;
-
     }
-
-    
-
     // Rate-distortion cost with perceptual weighting
-
     float compute\_cost(float bits, float distortion, const Color& original, 
-
                        const Color& reconstructed, const std::vector<Color>& neighborhood) {
-
         float perceptual\_dist = compute\_distortion(original, reconstructed, neighborhood);
-
         float lambda = config.lambda \* config.perceptual\_lambda\_multiplier;
-
-        
-
         // For lossless, distortion must be zero
-
         if (config.mode == CompressionMode::LOSSLESS && perceptual\_dist > 0.01f) {
-
             return 1e30f;
-
         }
-
-        
-
         return bits + lambda \* perceptual\_dist;
-
     }
-
-    
-
     // Adaptive palette reduction based on perceptual importance
-
     bool should\_merge\_colors(const Color& c1, const Color& c2, float freq1, float freq2) {
-
         if (config.mode == CompressionMode::LOSSLESS) {
-
             return false;  // Never merge in lossless mode
-
         }
-
-        
-
         float perceptual\_dist = PerceptualMetric::perceptual\_distance(c1, c2);
-
         float jnd = config.perceptual.jnd\_luminance;
-
-        
-
         // Merge if perceptually similar and at least one is infrequent
-
         return (perceptual\_dist < jnd) && (freq1 < 0.01f || freq2 < 0.01f);
-
     }
-
-    
-
     // Adaptive quantization step for residuals
-
     int quantize\_residual(int residual, int local\_complexity) {
-
         if (config.mode == CompressionMode::LOSSLESS) {
-
             return residual;  // No quantization in lossless
-
         }
-
-        
-
         float q\_step = config.perceptual.jnd\_luminance;
-
         if (config.enable\_adaptive\_quantization) {
-
             // Coarser quantization in complex areas
-
             q\_step \*= (1.0f + local\_complexity \* 0.5f);
-
         }
-
-        
-
         return int(std::round(float(residual) / q\_step)) \* int(q\_step);
-
     }
-
-    
-
 private:
-
     Config config;
-
 };
-
 // ============================================================================
-
 // PALETTE WITH PERCEPTUAL OPTIMIZATION
-
 // ============================================================================
-
 class Palette {
-
 public:
-
     std::vector<Color> colors;
-
     std::unordered\_map<uint32\_t, uint16\_t> index\_map;
-
     std::vector<int16\_t> delta\_encoded;
-
-    
-
     void build(const std::vector<Color>& pixel\_colors, int max\_size, 
-
                bool near\_lossless, float tolerance, bool lossless\_mode) {
-
         if (pixel\_colors.empty()) return;
-
-        
-
         // Frequency counting
-
         std::unordered\_map<uint32\_t, int> freq;
-
         for (const auto& c : pixel\_colors) {
-
             freq[c.to\_rgb32()]++;
-
         }
-
-        
-
         // Convert to vector and sort by frequency
-
         std::vector<std::pair<uint32\_t, int>> freq\_vec(freq.begin(), freq.end());
-
         std::sort(freq\_vec.begin(), freq\_vec.end(),
-
                   [](const auto& a, const auto& b) { return a.second > b.second; });
-
-        
-
         if (lossless\_mode) {
-
             // Lossless: keep exact colors
-
             colors.clear();
-
             for (const auto& [rgb, count] : freq\_vec) {
-
                 colors.push\_back(Color((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF));
-
                 if ((int)colors.size() >= max\_size) break;
-
             }
-
         } else {
-
             // Lossy: perceptual merging
-
             colors.clear();
-
             std::vector<bool> used(freq\_vec.size(), false);
-
-            
-
             for (size\_t i = 0; i < freq\_vec.size() && (int)colors.size() < max\_size; i++) {
-
                 if (used[i]) continue;
-
-                
-
                 Color base((freq\_vec[i].first >> 16) & 0xFF,
-
                           (freq\_vec[i].first >> 8) & 0xFF,
-
                           freq\_vec[i].first & 0xFF);
-
-                
-
                 // Merge perceptually similar colors
-
                 int total\_freq = freq\_vec[i].second;
-
                 float r\_avg = base.r, g\_avg = base.g, b\_avg = base.b;
-
-                
-
                 for (size\_t j = i + 1; j < freq\_vec.size() && (int)colors.size() < max\_size; j++) {
-
                     if (used[j]) continue;
-
-                    
-
                     Color other((freq\_vec[j].first >> 16) & 0xFF,
-
                                (freq\_vec[j].first >> 8) & 0xFF,
-
                                freq\_vec[j].first & 0xFF);
-
-                    
-
                     float dist = PerceptualMetric::perceptual\_distance(base, other);
-
                     if (dist < tolerance) {
-
                         r\_avg = (r\_avg \* total\_freq + other.r \* freq\_vec[j].second) / (total\_freq + freq\_vec[j].second);
-
                         g\_avg = (g\_avg \* total\_freq + other.g \* freq\_vec[j].second) / (total\_freq + freq\_vec[j].second);
-
                         b\_avg = (b\_avg \* total\_freq + other.b \* freq\_vec[j].second) / (total\_freq + freq\_vec[j].second);
-
                         total\_freq += freq\_vec[j].second;
-
                         used[j] = true;
-
                     }
-
                 }
-
-                
-
                 colors.push\_back(Color(uint8\_t(r\_avg), uint8\_t(g\_avg), uint8\_t(b\_avg)));
-
             }
-
         }
-
-        
-
         // Sort by similarity for better delta encoding
-
         sort\_by\_similarity();
-
-        
-
         // Build delta encoding
-
         if (colors.size() > 1) {
-
             delta\_encode\_palette();
-
         }
-
-        
-
         rebuild\_index\_map();
-
     }
-
-    
-
     void sort\_by\_similarity() {
-
         if (colors.size() < 2) return;
-
-        
-
         std::vector<Color> ordered;
-
         ordered.reserve(colors.size());
-
         ordered.push\_back(colors[0]);
-
-        
-
         std::vector<bool> used(colors.size(), false);
-
         used[0] = true;
-
-        
-
         for (size\_t i = 1; i < colors.size(); i++) {
-
             int best\_idx = -1;
-
             float best\_dist = std::numeric\_limits<float>::max();
-
-            
-
             for (size\_t j = 0; j < colors.size(); j++) {
-
                 if (used[j]) continue;
-
                 float dist = PerceptualMetric::perceptual\_distance(ordered.back(), colors[j]);
-
                 if (dist < best\_dist) {
-
                     best\_dist = dist;
-
                     best\_idx = int(j);
-
                 }
-
             }
-
-            
-
             if (best\_idx >= 0) {
-
                 ordered.push\_back(colors[best\_idx]);
-
                 used[best\_idx] = true;
-
             }
-
         }
-
-        
-
         colors = std::move(ordered);
-
     }
-
-    
-
     void delta\_encode\_palette() {
-
         delta\_encoded.clear();
-
         if (colors.empty()) return;
-
-        
-
         auto lum = [](const Color& c) { return c.luminance(); };
-
-        
-
         delta\_encoded.push\_back(lum(colors[0]));
-
         for (size\_t i = 1; i < colors.size(); i++) {
-
             delta\_encoded.push\_back(lum(colors[i]) - lum(colors[i-1]));
-
         }
-
     }
-
-    
-
     uint16\_t quantize(const Color& c) const {
-
         if (colors.empty()) return 0;
-
-        
-
         uint32\_t target = c.to\_rgb32();
-
         auto it = index\_map.find(target);
-
         if (it != index\_map.end()) return it->second;
-
-        
-
         // Find perceptually nearest color
-
         uint16\_t best\_idx = 0;
-
         float best\_dist = PerceptualMetric::perceptual\_distance(c, colors[0]);
-
         for (size\_t i = 1; i < colors.size(); i++) {
-
             float dist = PerceptualMetric::perceptual\_distance(c, colors[i]);
-
             if (dist < best\_dist) {
-
                 best\_dist = dist;
-
                 best\_idx = uint16\_t(i);
-
             }
-
         }
-
         return best\_idx;
-
     }
-
-    
-
     Color unquantize(uint16\_t idx) const {
-
         if (idx < colors.size()) return colors[idx];
-
         return Color(0, 0, 0);
-
     }
-
-    
-
     void rebuild\_index\_map() {
-
         index\_map.clear();
-
         for (size\_t i = 0; i < colors.size(); i++) {
-
             index\_map[colors[i].to\_rgb32()] = uint16\_t(i);
-
         }
-
     }
-
 };
-
 // ============================================================================
-
 // DIRECTIONAL PATH
-
 // ============================================================================
-
 class DirectionalPath {
-
 public:
-
     std::vector<Vec2> path;
-
     std::vector<uint8\_t> directions;
-
-    
-
     void build(const Triangle& tri, const std::vector<Color>& image, int width, int height) {
-
         path.clear();
-
         directions.clear();
-
-        
-
         // Collect all pixels in triangle
-
         std::vector<Vec2> pixels;
-
         int min\_x, max\_x, min\_y, max\_y;
-
         tri.get\_bounds(min\_x, max\_x, min\_y, max\_y);
-
-        
-
         for (int y = min\_y; y <= max\_y; y++) {
-
             for (int x = min\_x; x <= max\_x; x++) {
-
                 if (x >= 0 && x < width && y >= 0 && y < height && tri.contains(x, y)) {
-
                     pixels.push\_back(Vec2(x, y));
-
                 }
-
             }
-
         }
-
-        
-
         if (pixels.empty()) return;
-
-        
-
         // Simple raster path for now
-
         std::sort(pixels.begin(), pixels.end(),
-
                   [](const Vec2& a, const Vec2& b) {
-
                       return (a.y < b.y) || (a.y == b.y && a.x < b.x);
-
                   });
-
         path = std::move(pixels);
-
-        
-
         // Compute directions
-
         for (size\_t i = 1; i < path.size(); i++) {
-
             int dx = path[i].x - path[i-1].x;
-
             int dy = path[i].y - path[i-1].y;
-
-            
-
             uint8\_t dir = 0;
-
             if (dx == 1 && dy == 0) dir = 1;
-
             else if (dx == -1 && dy == 0) dir = 2;
-
             else if (dx == 0 && dy == 1) dir = 3;
-
             else if (dx == 0 && dy == -1) dir = 4;
-
             else if (dx == 1 && dy == 1) dir = 5;
-
             else if (dx == -1 && dy == -1) dir = 6;
-
             else if (dx == 1 && dy == -1) dir = 7;
-
             else if (dx == -1 && dy == 1) dir = 8;
-
-            
-
             directions.push\_back(dir);
-
         }
-
     }
-
 };
-
 // ============================================================================
-
 // PREDICTORS
-
 // ============================================================================
-
 class Predictor {
-
 public:
-
     enum Type : uint8\_t {
-
         NONE = 0,
-
         LEFT = 1,
-
         TOP = 2,
-
         AVERAGE = 3,
-
         GRADIENT = 4,
-
         XOR = 5,
-
         DELTA = 6,
-
         DIRECTIONAL = 7
-
     };
-
-    
-
     static Color predict(const std::vector<Color>& decoded, const Vec2& pos,
-
                          int width, Type type, uint8\_t direction = 0) {
-
         switch (type) {
-
             case LEFT:
-
                 if (pos.x > 0) return decoded[pos.y \* width + (pos.x - 1)];
-
                 break;
-
             case TOP:
-
                 if (pos.y > 0) return decoded[(pos.y - 1) \* width + pos.x];
-
                 break;
-
             case AVERAGE:
-
                 if (pos.x > 0 && pos.y > 0) {
-
                     Color left = decoded[pos.y \* width + (pos.x - 1)];
-
                     Color top = decoded[(pos.y - 1) \* width + pos.x];
-
                     return Color((left.r + top.r) / 2, (left.g + top.g) / 2, (left.b + top.b) / 2);
-
                 }
-
                 break;
-
             case GRADIENT:
-
                 if (pos.x > 0 && pos.y > 0) {
-
                     Color left = decoded[pos.y \* width + (pos.x - 1)];
-
                     Color top = decoded[(pos.y - 1) \* width + pos.x];
-
                     Color topleft = decoded[(pos.y - 1) \* width + (pos.x - 1)];
-
                     return Color(
-
                         std::clamp(int(left.r) + int(top.r) - int(topleft.r), 0, 255),
-
                         std::clamp(int(left.g) + int(top.g) - int(topleft.g), 0, 255),
-
                         std::clamp(int(left.b) + int(top.b) - int(topleft.b), 0, 255)
-
                     );
-
                 }
-
                 break;
-
             default:
-
                 break;
-
         }
-
         return Color(128, 128, 128);
-
     }
-
-    
-
     static int16\_t compute\_residual(const Color& actual, const Color& predicted, Type type) {
-
         if (type == XOR) {
-
             Color xord = actual ^ predicted;
-
             return int16\_t(xord.r + xord.g + xord.b);
-
         } else {
-
             return int16\_t(actual.luminance() - predicted.luminance());
-
         }
-
     }
-
-    
-
     static Color reconstruct(const Color& predicted, int16\_t residual, Type type) {
-
         int lum = predicted.luminance() + residual;
-
         lum = std::clamp(lum, 0, 765);
-
         return Color(uint8\_t(lum / 3), uint8\_t(lum / 3), uint8\_t(lum / 3));
-
     }
-
 };
-
 // ============================================================================
-
 // XOR/DELTA TRANSFORM
-
 // ============================================================================
-
 class XORDeltaTransform {
-
 public:
-
     static std::vector<uint8\_t> apply\_xor(const std::vector<uint16\_t>& symbols) {
-
         std::vector<uint8\_t> result;
-
         if (symbols.empty()) return result;
-
-        
-
         result.push\_back(uint8\_t(symbols[0] & 0xFF));
-
         result.push\_back(uint8\_t((symbols[0] >> 8) & 0xFF));
-
-        
-
         for (size\_t i = 1; i < symbols.size(); i++) {
-
             uint16\_t xored = symbols[i] ^ symbols[i-1];
-
             result.push\_back(uint8\_t(xored & 0xFF));
-
             result.push\_back(uint8\_t((xored >> 8) & 0xFF));
-
         }
-
         return result;
-
     }
-
-    
-
     static std::vector<int16\_t> apply\_delta(const std::vector<uint16\_t>& symbols) {
-
         std::vector<int16\_t> deltas;
-
         if (symbols.empty()) return deltas;
-
-        
-
         deltas.push\_back(int16\_t(symbols[0]));
-
         for (size\_t i = 1; i < symbols.size(); i++) {
-
             deltas.push\_back(int16\_t(symbols[i] - symbols[i-1]));
-
         }
-
         return deltas;
-
     }
-
-    
-
     static std::vector<uint16\_t> inverse\_xor(const std::vector<uint8\_t>& xored) {
-
         std::vector<uint16\_t> result;
-
         if (xored.size() < 2) return result;
-
-        
-
         uint16\_t prev = uint16\_t(xored[0]) | (uint16\_t(xored[1]) << 8);
-
         result.push\_back(prev);
-
-        
-
         for (size\_t i = 2; i + 1 < xored.size(); i += 2) {
-
             uint16\_t xored\_val = uint16\_t(xored[i]) | (uint16\_t(xored[i+1]) << 8);
-
             uint16\_t decoded = xored\_val ^ prev;
-
             result.push\_back(decoded);
-
             prev = decoded;
-
         }
-
         return result;
-
     }
-
-    
-
     static std::vector<uint16\_t> inverse\_delta(const std::vector<int16\_t>& deltas) {
-
         std::vector<uint16\_t> result;
-
         if (deltas.empty()) return result;
-
-        
-
         result.push\_back(uint16\_t(deltas[0]));
-
         for (size\_t i = 1; i < deltas.size(); i++) {
-
             result.push\_back(uint16\_t(int(result.back()) + deltas[i]));
-
         }
-
         return result;
-
     }
-
 };
-
 // ============================================================================
-
 // STREAM SEPARATOR
-
 // ============================================================================
-
 struct EncodedStreams {
-
     std::vector<uint8\_t> control\_bits;
-
     std::vector<uint8\_t> symbol\_stream;
-
     std::vector<int16\_t> residual\_stream;
-
     std::vector<uint8\_t> palette\_stream;
-
-    
-
     void clear() {
-
         control\_bits.clear();
-
         symbol\_stream.clear();
-
         residual\_stream.clear();
-
         palette\_stream.clear();
-
     }
-
-    
-
     size\_t total\_bytes() const {
-
         return control\_bits.size() + symbol\_stream.size() + 
-
                residual\_stream.size() \* 2 + palette\_stream.size();
-
     }
-
 };
-
 // ============================================================================
-
 // CONTEXT MODEL
-
 // ============================================================================
-
 class ContextModel {
-
 public:
-
     struct Key {
-
         uint32\_t prev\_symbols[3];
-
         uint8\_t prev\_residuals[3];
-
         uint8\_t region\_type;
-
         uint8\_t direction;
-
-        
-
         bool operator==(const Key& other) const {
-
             return prev\_symbols[0] == other.prev\_symbols[0] &&
-
                    prev\_symbols[1] == other.prev\_symbols[1] &&
-
                    prev\_symbols[2] == other.prev\_symbols[2] &&
-
                    prev\_residuals[0] == other.prev\_residuals[0] &&
-
                    prev\_residuals[1] == other.prev\_residuals[1] &&
-
                    prev\_residuals[2] == other.prev\_residuals[2] &&
-
                    region\_type == other.region\_type &&
-
                    direction == other.direction;
-
         }
-
     };
-
-    
-
     struct KeyHash {
-
         size\_t operator()(const Key& k) const {
-
             size\_t h = 0;
-
             h ^= std::hash<uint32\_t>{}(k.prev\_symbols[0]) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             h ^= std::hash<uint32\_t>{}(k.prev\_symbols[1]) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             h ^= std::hash<uint32\_t>{}(k.prev\_symbols[2]) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             h ^= std::hash<uint8\_t>{}(k.prev\_residuals[0]) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             h ^= std::hash<uint8\_t>{}(k.prev\_residuals[1]) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             h ^= std::hash<uint8\_t>{}(k.prev\_residuals[2]) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             h ^= std::hash<uint8\_t>{}(k.region\_type) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             h ^= std::hash<uint8\_t>{}(k.direction) + 0x9e3779b9 + (h << 6) + (h >> 2);
-
             return h;
-
         }
-
     };
-
-    
-
     void update(uint32\_t symbol, const Key& ctx) {
-
         auto& counts = freq\_[ctx];
-
         if (counts.size() <= symbol) counts.resize(symbol + 1, 0);
-
         counts[symbol]++;
-
         total\_[ctx]++;
-
     }
-
-    
-
     float probability(uint32\_t symbol, const Key& ctx) const {
-
         auto it = freq\_.find(ctx);
-
         if (it == freq\_.end()) return 1.0f / 65536.0f;
-
         if (symbol >= it->second.size()) return 1.0f / 65536.0f;
-
-        
-
         auto total\_it = total\_.find(ctx);
-
         if (total\_it == total\_.end()) return 1.0f / 65536.0f;
-
-        
-
         return float(it->second[symbol]) / float(total\_it->second);
-
     }
-
-    
-
     float cost\_bits(uint32\_t symbol, const Key& ctx) const {
-
         float p = probability(symbol, ctx);
-
         return -std::log2(p + 1e-9f);
-
     }
-
-    
-
     void build\_cdf(const Key& ctx, std::vector<uint32\_t>& cdf, int& total) const {
-
         auto it = freq\_.find(ctx);
-
         if (it == freq\_.end() || it->second.empty()) {
-
             cdf = {0, 65536};
-
             total = 65536;
-
             return;
-
         }
-
-        
-
         cdf.clear();
-
         cdf.push\_back(0);
-
         total = 0;
-
         for (size\_t i = 0; i < it->second.size(); i++) {
-
             total += it->second[i];
-
             cdf.push\_back(total);
-
         }
-
-        
-
         if (total == 0) {
-
             cdf = {0, 65536};
-
             total = 65536;
-
         }
-
     }
-
-    
-
     void reset() {
-
         freq\_.clear();
-
         total\_.clear();
-
     }
-
-    
-
 private:
-
     mutable std::unordered\_map<Key, std::vector<uint32\_t>, KeyHash> freq\_;
-
     mutable std::unordered\_map<Key, uint32\_t, KeyHash> total\_;
-
 };
-
 // ============================================================================
-
 // ANS ENTROPY CODER
-
 // ============================================================================
-
 class ANSEncoder {
-
 public:
-
     struct State {
-
         uint64\_t x = 0;
-
         std::vector<uint8\_t> buffer;
-
-        
-
         void write\_bit(bool bit) {
-
             buffer.push\_back(bit ? 1 : 0);
-
         }
-
-        
-
         void write\_byte(uint8\_t byte) {
-
             for (int i = 0; i < 8; i++) {
-
                 write\_bit((byte >> i) & 1);
-
             }
-
         }
-
-        
-
         void flush() {
-
             while (x > 0) {
-
                 write\_bit(x & 1);
-
                 x >>= 1;
-
             }
-
         }
-
     };
-
-    
-
     void encode(State& state, uint32\_t symbol, const uint32\_t\* cum\_freq, int total\_freq) {
-
         while (state.x >= (1ULL << 31)) {
-
             state.write\_bit(state.x & 1);
-
             state.x >>= 1;
-
         }
-
-        
-
         uint32\_t freq = cum\_freq[symbol + 1] - cum\_freq[symbol];
-
         if (freq == 0) freq = 1;
-
-        
-
         uint64\_t x\_div = state.x / freq;
-
         uint64\_t x\_mod = state.x % freq;
-
         state.x = x\_div \* total\_freq + cum\_freq[symbol] + x\_mod;
-
     }
-
-    
-
     std::vector<uint8\_t> finish(State& state) {
-
         state.flush();
-
         return std::move(state.buffer);
-
     }
-
 };
-
 class ANSDecoder {
-
 public:
-
     struct State {
-
         uint64\_t x = 0;
-
         const uint8\_t\* data;
-
         size\_t pos = 0;
-
         size\_t size;
-
-        
-
         State(const uint8\_t\* \_data, size\_t \_size) : data(\_data), size(\_size) {
-
             for (int i = 0; i < 32 && pos < size; i++) {
-
                 x |= (uint64\_t(data[pos]) << i);
-
                 pos++;
-
             }
-
         }
-
-        
-
         bool read\_bit() {
-
             if (pos >= size) return false;
-
             bool bit = data[pos] != 0;
-
             pos++;
-
             return bit;
-
         }
-
-        
-
         uint8\_t read\_byte() {
-
             uint8\_t byte = 0;
-
             for (int i = 0; i < 8; i++) {
-
                 if (read\_bit()) byte |= (1 << i);
-
             }
-
             return byte;
-
         }
-
     };
-
-    
-
     uint32\_t decode(State& state, const uint32\_t\* cum\_freq, int total\_freq) {
-
         uint32\_t slot = state.x % total\_freq;
-
         uint32\_t sym = 0;
-
         while (cum\_freq[sym + 1] <= slot) sym++;
-
-        
-
         uint32\_t freq = cum\_freq[sym + 1] - cum\_freq[sym];
-
         if (freq == 0) freq = 1;
-
-        
-
         uint64\_t x\_div = state.x / total\_freq;
-
         uint64\_t x\_mod = state.x % total\_freq;
-
         state.x = freq \* x\_div + (x\_mod - cum\_freq[sym]);
-
-        
-
         while (state.x < (1ULL << 31) && state.pos < state.size) {
-
             state.x |= (uint64\_t(state.data[state.pos]) << 31);
-
             state.pos++;
-
         }
-
-        
-
         return sym;
-
     }
-
 };
-
 // ============================================================================
-
 // REGION
-
 // ============================================================================
-
 enum class RegionMode : uint8\_t {
-
     PALETTE\_DIRECTIONAL = 0,
-
     PALETTE\_RASTER = 1,
-
     PREDICTIVE\_LEFT = 2,
-
     PREDICTIVE\_TOP = 3,
-
     PREDICTIVE\_AVG = 4,
-
     PREDICTIVE\_GRADIENT = 5,
-
     PREDICTIVE\_XOR = 6,
-
     PREDICTIVE\_DELTA = 7,
-
     PREDICTIVE\_DIRECTIONAL = 8
-
 };
-
 struct Region {
-
     Triangle triangle;
-
     Palette palette;
-
     DirectionalPath path;
-
     RegionMode mode = RegionMode::PALETTE\_DIRECTIONAL;
-
-    
-
     std::vector<uint16\_t> symbols;
-
     std::vector<int16\_t> residuals;
-
     std::vector<uint8\_t> control;
-
-    
-
     bool xor\_applied = false;
-
     bool delta\_applied = false;
-
-    
-
     float distortion = 0.0f;
-
     float rate = 0.0f;
-
     float entropy = 0.0f;
-
-    
-
     float rd\_cost() const { return rate + Config().lambda \* distortion; }
-
-    
-
     void compute\_entropy() {
-
         entropy = EntropyCalculator::compute\_entropy(
-
             std::vector<uint32\_t>(symbols.begin(), symbols.end())
-
         );
-
     }
-
 };
-
 // ============================================================================
-
 // ENTROPY-AWARE REGION SPLITTER
-
 // ============================================================================
-
 class EntropyAwareRegionSplitter {
-
 public:
-
     std::vector<Region> split\_image(const std::vector<Color>& image, int width, int height,
-
                                      const Config& config) {
-
         std::vector<Region> regions;
-
-        
-
         Vec2 top\_left(0, 0);
-
         Vec2 top\_right(width - 1, 0);
-
         Vec2 bottom\_left(0, height - 1);
-
         Vec2 bottom\_right(width - 1, height - 1);
-
-        
-
         Triangle tri1{top\_left, top\_right, bottom\_left};
-
         Triangle tri2{top\_right, bottom\_right, bottom\_left};
-
-        
-
         Region r1, r2;
-
         r1.triangle = tri1;
-
         r2.triangle = tri2;
-
-        
-
         split\_recursive(r1, image, width, height, regions, 0, config);
-
         split\_recursive(r2, image, width, height, regions, 0, config);
-
-        
-
         return regions;
-
     }
-
-    
-
 private:
-
     void split\_recursive(Region& region, const std::vector<Color>& image,
-
                          int width, int height, std::vector<Region>& result, 
-
                          int depth, const Config& config) {
-
         auto pixels = extract\_pixels(region.triangle, image, width, height);
-
-        
-
         if (pixels.size() < (size\_t)config.min\_region\_size) {
-
             finalize\_region(region, pixels, width, height, config);
-
             result.push\_back(region);
-
             return;
-
         }
-
-        
-
         float current\_entropy = EntropyCalculator::compute\_color\_entropy(pixels);
-
-        
-
         Vec2 centroid = region.triangle.centroid();
-
         Triangle sub1{region.triangle.v0, region.triangle.v1, centroid};
-
         Triangle sub2{region.triangle.v1, region.triangle.v2, centroid};
-
         Triangle sub3{region.triangle.v2, region.triangle.v0, centroid};
-
-        
-
         auto pixels1 = extract\_pixels(sub1, image, width, height);
-
         auto pixels2 = extract\_pixels(sub2, image, width, height);
-
         auto pixels3 = extract\_pixels(sub3, image, width, height);
-
-        
-
         float ent1 = EntropyCalculator::compute\_color\_entropy(pixels1);
-
         float ent2 = EntropyCalculator::compute\_color\_entropy(pixels2);
-
         float ent3 = EntropyCalculator::compute\_color\_entropy(pixels3);
-
-        
-
         float w1 = float(pixels1.size()) / pixels.size();
-
         float w2 = float(pixels2.size()) / pixels.size();
-
         float w3 = float(pixels3.size()) / pixels.size();
-
-        
-
         float weighted\_child\_entropy = ent1 \* w1 + ent2 \* w2 + ent3 \* w3;
-
         float entropy\_gain = current\_entropy - weighted\_child\_entropy;
-
-        
-
         if (entropy\_gain < config.entropy\_threshold || depth >= config.max\_region\_depth) {
-
             finalize\_region(region, pixels, width, height, config);
-
             result.push\_back(region);
-
         } else {
-
             Region r1, r2, r3;
-
             r1.triangle = sub1;
-
             r2.triangle = sub2;
-
             r3.triangle = sub3;
-
             split\_recursive(r1, image, width, height, result, depth + 1, config);
-
             split\_recursive(r2, image, width, height, result, depth + 1, config);
-
             split\_recursive(r3, image, width, height, result, depth + 1, config);
-
         }
-
     }
-
-    
-
     std::vector<Color> extract\_pixels(const Triangle& tri, const std::vector<Color>& image,
-
                                        int width, int height) {
-
         std::vector<Color> pixels;
-
         int min\_x, max\_x, min\_y, max\_y;
-
         tri.get\_bounds(min\_x, max\_x, min\_y, max\_y);
-
-        
-
         for (int y = min\_y; y <= max\_y; y++) {
-
             for (int x = min\_x; x <= max\_x; x++) {
-
                 if (x >= 0 && x < width && y >= 0 && y < height && tri.contains(x, y)) {
-
                     pixels.push\_back(image[y \* width + x]);
-
                 }
-
             }
-
         }
-
         return pixels;
-
     }
-
-    
-
     void finalize\_region(Region& region, const std::vector<Color>& pixels,
-
                          int width, int height, const Config& config) {
-
         bool lossless = (config.mode == CompressionMode::LOSSLESS);
-
         region.palette.build(pixels, config.max\_palette\_size, 
-
                             config.near\_lossless, config.near\_lossless\_tolerance,
-
                             lossless);
-
-        
-
         std::vector<Color> dummy\_image(width \* height);
-
         for (size\_t i = 0; i < pixels.size() && i < dummy\_image.size(); i++) {
-
             dummy\_image[i] = pixels[i];
-
         }
-
         region.path.build(region.triangle, dummy\_image, width, height);
-
     }
-
 };
-
 // ============================================================================
-
 // MAIN ENCODER
-
 // ============================================================================
-
 class OrganicEncoder {
-
 public:
-
     OrganicEncoder(const Config& cfg = Config()) : config(cfg), perceptual\_rdo(cfg) {}
-
-    
-
     std::vector<uint8\_t> encode(const std::vector<Color>& image, int width, int height) {
-
         EntropyAwareRegionSplitter splitter;
-
         auto regions = splitter.split\_image(image, width, height, config);
-
-        
-
         for (auto& region : regions) {
-
             process\_region(region, image, width, height);
-
         }
-
-        
-
         return encode\_all\_streams(regions);
-
     }
-
-    
-
 private:
-
     Config config;
-
     PerceptualRDO perceptual\_rdo;
-
     ContextModel context\_model;
-
     ANSEncoder ans\_encoder;
-
-    
-
     void process\_region(Region& region, const std::vector<Color>& image,
-
                         int width, int height) {
-
         auto pixels = extract\_pixels(region.triangle, image, width, height);
-
         auto positions = extract\_positions(region.triangle, width, height);
-
-        
-
         if (pixels.empty()) return;
-
-        
-
         if (config.enable\_palette\_reduction) {
-
             bool lossless = (config.mode == CompressionMode::LOSSLESS);
-
             region.palette.build(pixels, config.max\_palette\_size,
-
                                 config.near\_lossless, config.near\_lossless\_tolerance,
-
                                 lossless);
-
         }
-
-        
-
         if (config.enable\_directional\_prediction) {
-
             region.path.build(region.triangle, image, width, height);
-
         }
-
-        
-
         // Select best mode
-
         Region best\_region = region;
-
         float best\_cost = std::numeric\_limits<float>::max();
-
-        
-
         int max\_mode = config.lossless\_use\_all\_predictors ? 8 : 4;
-
-        
-
         for (int m = 0; m <= max\_mode; m++) {
-
             Region test\_region = region;
-
             test\_region.mode = RegionMode(m);
-
-            
-
             encode\_region\_with\_mode(test\_region, pixels, positions, width);
-
-            
-
             std::vector<Color> reconstructed;
-
             decode\_region\_with\_mode(test\_region, reconstructed, width);
-
-            
-
             // Compute perceptual distortion
-
             float total\_dist = 0.0f;
-
             for (size\_t i = 0; i < pixels.size(); i++) {
-
                 std::vector<Color> neighborhood;
-
                 if (i > 0) neighborhood.push\_back(reconstructed[i-1]);
-
                 total\_dist += perceptual\_rdo.compute\_distortion(pixels[i], reconstructed[i], neighborhood);
-
             }
-
             test\_region.distortion = total\_dist / pixels.size();
-
-            
-
             // Compute rate
-
             test\_region.rate = 0.0f;
-
             for (size\_t i = 0; i < test\_region.symbols.size(); i++) {
-
                 test\_region.rate += std::log2(float(test\_region.palette.colors.size()));
-
             }
-
             test\_region.rate += region.palette.colors.size() \* 3.0f \* 8.0f;
-
-            
-
             float cost = perceptual\_rdo.compute\_cost(test\_region.rate, test\_region.distortion,
-
                                                       Color(), Color(), {});
-
-            
-
             if (cost < best\_cost) {
-
                 best\_cost = cost;
-
                 best\_region = std::move(test\_region);
-
             }
-
         }
-
-        
-
         region = std::move(best\_region);
-
     }
-
-    
-
     void encode\_region\_with\_mode(Region& region, const std::vector<Color>& pixels,
-
                                   const std::vector<Vec2>& positions, int width) {
-
         region.symbols.clear();
-
         region.residuals.clear();
-
-        
-
         switch (region.mode) {
-
             case RegionMode::PALETTE\_DIRECTIONAL:
-
                 for (const auto& pos : region.path.path) {
-
                     int idx = pos.y \* width + pos.x;
-
                     if (idx < (int)pixels.size()) {
-
                         region.symbols.push\_back(region.palette.quantize(pixels[idx]));
-
                         region.residuals.push\_back(0);
-
                     }
-
                 }
-
                 break;
-
-                
-
             case RegionMode::PREDICTIVE\_GRADIENT: {
-
                 std::vector<Color> decoded(pixels.size());
-
                 for (size\_t i = 0; i < pixels.size(); i++) {
-
                     Color pred = Predictor::predict(decoded, positions[i], width, Predictor::GRADIENT);
-
                     int16\_t res = Predictor::compute\_residual(pixels[i], pred, Predictor::GRADIENT);
-
-                    
-
                     // Apply perceptual quantization in lossy mode
-
                     if (config.mode != CompressionMode::LOSSLESS) {
-
                         int local\_complexity = (i > 0) ? std::abs(res) / 10 : 0;
-
                         res = perceptual\_rdo.quantize\_residual(res, local\_complexity);
-
                     }
-
-                    
-
                     region.residuals.push\_back(res);
-
                     decoded[i] = Predictor::reconstruct(pred, res, Predictor::GRADIENT);
-
                     region.symbols.push\_back(uint16\_t(res + 512));
-
                 }
-
                 break;
-
             }
-
-            
-
             default:
-
                 for (size\_t i = 0; i < pixels.size(); i++) {
-
                     region.symbols.push\_back(region.palette.quantize(pixels[i]));
-
                     region.residuals.push\_back(0);
-
                 }
-
                 break;
-
         }
-
     }
-
-    
-
     void decode\_region\_with\_mode(const Region& region, std::vector<Color>& output, int width) {
-
         output.resize(region.symbols.size());
-
-        
-
         switch (region.mode) {
-
             case RegionMode::PALETTE\_DIRECTIONAL:
-
                 for (size\_t i = 0; i < region.symbols.size(); i++) {
-
                     output[i] = region.palette.unquantize(region.symbols[i]);
-
                 }
-
                 break;
-
-                
-
             case RegionMode::PREDICTIVE\_GRADIENT: {
-
                 std::vector<Vec2> dummy\_positions;
-
                 for (size\_t i = 0; i < region.symbols.size(); i++) {
-
                     dummy\_positions.push\_back(Vec2(int(i) % width, int(i) / width));
-
                 }
-
                 std::vector<Color> decoded(region.symbols.size());
-
                 for (size\_t i = 0; i < region.symbols.size(); i++) {
-
                     Color pred = Predictor::predict(decoded, dummy\_positions[i], width, Predictor::GRADIENT);
-
                     int16\_t res = int16\_t(region.symbols[i] - 512);
-
                     decoded[i] = Predictor::reconstruct(pred, res, Predictor::GRADIENT);
-
                     output[i] = decoded[i];
-
                 }
-
                 break;
-
             }
-
-            
-
             default:
-
                 for (size\_t i = 0; i < region.symbols.size(); i++) {
-
                     output[i] = region.palette.unquantize(region.symbols[i]);
-
                 }
-
                 break;
-
         }
-
     }
-
-    
-
     std::vector<uint8\_t> encode\_all\_streams(const std::vector<Region>& regions) {
-
         EncodedStreams streams;
-
         ANSEncoder::State state;
-
-        
-
         // Write header with mode
-
         state.write\_byte(uint8\_t(config.mode));
-
-        
-
         uint32\_t num\_regions = uint32\_t(regions.size());
-
         for (int i = 0; i < 32; i++) {
-
             state.write\_bit((num\_regions >> i) & 1);
-
         }
-
-        
-
         for (const auto& region : regions) {
-
             encode\_region\_streams(region, streams, state);
-
         }
-
-        
-
         auto compressed = ans\_encoder.finish(state);
-
-        
-
         compressed.insert(compressed.end(), streams.control\_bits.begin(), streams.control\_bits.end());
-
         compressed.insert(compressed.end(), streams.symbol\_stream.begin(), streams.symbol\_stream.end());
-
         for (auto res : streams.residual\_stream) {
-
             compressed.push\_back(uint8\_t(res & 0xFF));
-
             compressed.push\_back(uint8\_t((res >> 8) & 0xFF));
-
         }
-
         compressed.insert(compressed.end(), streams.palette\_stream.begin(), streams.palette\_stream.end());
-
-        
-
         return compressed;
-
     }
-
-    
-
     void encode\_region\_streams(const Region& region, EncodedStreams& streams, ANSEncoder::State& state) {
-
         uint8\_t control\_byte = uint8\_t(region.mode) | (region.xor\_applied ? 0x80 : 0) | 
-
                                 (region.delta\_applied ? 0x40 : 0);
-
         streams.control\_bits.push\_back(control\_byte);
-
-        
-
         streams.control\_bits.push\_back(uint8\_t(region.palette.colors.size() & 0xFF));
-
         streams.control\_bits.push\_back(uint8\_t((region.palette.colors.size() >> 8) & 0xFF));
-
-        
-
         if (config.enable\_palette\_delta\_encoding) {
-
             for (auto delta : region.palette.delta\_encoded) {
-
                 streams.palette\_stream.push\_back(uint8\_t(delta & 0xFF));
-
                 streams.palette\_stream.push\_back(uint8\_t((delta >> 8) & 0xFF));
-
             }
-
         } else {
-
             for (const auto& color : region.palette.colors) {
-
                 streams.palette\_stream.push\_back(color.r);
-
                 streams.palette\_stream.push\_back(color.g);
-
                 streams.palette\_stream.push\_back(color.b);
-
             }
-
         }
-
-        
-
         streams.symbol\_stream.insert(streams.symbol\_stream.end(),
-
                                       reinterpret\_cast<const uint8\_t\*>(region.symbols.data()),
-
                                       reinterpret\_cast<const uint8\_t\*>(region.symbols.data() + region.symbols.size()));
-
-        
-
         streams.residual\_stream.insert(streams.residual\_stream.end(),
-
                                         region.residuals.begin(), region.residuals.end());
-
     }
-
-    
-
     std::vector<Color> extract\_pixels(const Triangle& tri, const std::vector<Color>& image,
-
                                        int width, int height) {
-
         std::vector<Color> pixels;
-
         int min\_x, max\_x, min\_y, max\_y;
-
         tri.get\_bounds(min\_x, max\_x, min\_y, max\_y);
-
-        
-
         for (int y = min\_y; y <= max\_y; y++) {
-
             for (int x = min\_x; x <= max\_x; x++) {
-
                 if (x >= 0 && x < width && y >= 0 && y < height && tri.contains(x, y)) {
-
                     pixels.push\_back(image[y \* width + x]);
-
                 }
-
             }
-
         }
-
         return pixels;
-
     }
-
-    
-
     std::vector<Vec2> extract\_positions(const Triangle& tri, int width, int height) {
-
         std::vector<Vec2> positions;
-
         int min\_x, max\_x, min\_y, max\_y;
-
         tri.get\_bounds(min\_x, max\_x, min\_y, max\_y);
-
-        
-
         for (int y = min\_y; y <= max\_y; y++) {
-
             for (int x = min\_x; x <= max\_x; x++) {
-
                 if (x >= 0 && x < width && y >= 0 && y < height && tri.contains(x, y)) {
-
                     positions.push\_back(Vec2(x, y));
-
                 }
-
             }
-
         }
-
         return positions;
-
     }
-
 };
-
 // ============================================================================
-
 // MAIN DECODER
-
 // ============================================================================
-
 class OrganicDecoder {
-
 public:
-
     std::vector<Color> decode(const std::vector<uint8\_t>& data, int& width, int& height) {
-
         ANSDecoder::State state(data.data(), data.size());
-
-        
-
         // Read mode
-
         CompressionMode mode = CompressionMode(state.read\_byte());
-
-        
-
         uint32\_t num\_regions = 0;
-
         for (int i = 0; i < 32; i++) {
-
             if (state.read\_bit()) num\_regions |= (1 << i);
-
         }
-
-        
-
         std::vector<Region> regions;
-
         for (uint32\_t r = 0; r < num\_regions; r++) {
-
             Region region;
-
             decode\_region\_streams(region, state);
-
             regions.push\_back(region);
-
         }
-
-        
-
         // Reconstruct image dimensions
-
         width = 0;
-
         height = 0;
-
         for (const auto& region : regions) {
-
             width = std::max(width, std::max({region.triangle.v0.x, region.triangle.v1.x, region.triangle.v2.x}) + 1);
-
             height = std::max(height, std::max({region.triangle.v0.y, region.triangle.v1.y, region.triangle.v2.y}) + 1);
-
         }
-
-        
-
         std::vector<Color> image(width \* height);
-
-        
-
         for (const auto& region : regions) {
-
             std::vector<Color> region\_pixels;
-
             decode\_region\_with\_mode(region, region\_pixels, width);
-
-            
-
             int idx = 0;
-
             int min\_x, max\_x, min\_y, max\_y;
-
             region.triangle.get\_bounds(min\_x, max\_x, min\_y, max\_y);
-
-            
-
             for (int y = min\_y; y <= max\_y && idx < (int)region\_pixels.size(); y++) {
-
                 for (int x = min\_x; x <= max\_x; x++) {
-
                     if (x >= 0 && x < width && y >= 0 && y < height && 
-
                         region.triangle.contains(x, y)) {
-
                         image[y \* width + x] = region\_pixels[idx++];
-
                     }
-
                 }
-
             }
-
         }
-
-        
-
         return image;
-
     }
-
-    
-
 private:
-
     void decode\_region\_streams(Region& region, ANSDecoder::State& state) {
-
         uint8\_t control\_byte = state.read\_byte();
-
         region.mode = RegionMode(control\_byte & 0x07);
-
         region.xor\_applied = (control\_byte & 0x80) != 0;
-
         region.delta\_applied = (control\_byte & 0x40) != 0;
-
-        
-
         uint16\_t palette\_size = state.read\_byte() | (state.read\_byte() << 8);
-
-        
-
         region.palette.colors.resize(palette\_size);
-
         for (int i = 0; i < palette\_size; i++) {
-
             region.palette.colors[i] = Color(state.read\_byte(), state.read\_byte(), state.read\_byte());
-
         }
-
         region.palette.rebuild\_index\_map();
-
-        
-
         // Symbol decoding (simplified)
-
         region.symbols.resize(palette\_size \* 2);  // Placeholder
-
     }
-
-    
-
     void decode\_region\_with\_mode(const Region& region, std::vector<Color>& output, int width) {
-
         output.resize(region.symbols.size());
-
-        
-
         switch (region.mode) {
-
             case RegionMode::PALETTE\_DIRECTIONAL:
-
                 for (size\_t i = 0; i < region.symbols.size(); i++) {
-
                     output[i] = region.palette.unquantize(region.symbols[i]);
-
                 }
-
                 break;
-
-                
-
             default:
-
                 for (size\_t i = 0; i < region.symbols.size(); i++) {
-
                     output[i] = region.palette.unquantize(region.symbols[i]);
-
                 }
-
                 break;
-
         }
-
     }
-
 };
-
 // ============================================================================
-
 // CONVENIENCE WRAPPER
-
 // ============================================================================
-
 inline std::vector<uint8\_t> compress\_image(const std::vector<Color>& image,
-
                                             int width, int height,
-
                                             const Config& cfg = Config()) {
-
     OrganicEncoder encoder(cfg);
-
     return encoder.encode(image, width, height);
-
 }
-
 inline std::vector<Color> decompress\_image(const std::vector<uint8\_t>& compressed\_data,
-
                                             int& width, int& height) {
-
     OrganicDecoder decoder;
-
     return decoder.decode(compressed\_data, width, height);
-
 }
-
 // ============================================================================
-
 // HELPER FUNCTIONS FOR COMMON USE CASES
-
 // ============================================================================
-
 inline std::vector<uint8\_t> compress\_lossless\_max(const std::vector<Color>& image,
-
                                                    int width, int height) {
-
     return compress\_image(image, width, height, Config::max\_lossless());
-
 }
-
 inline std::vector<uint8\_t> compress\_perceptual(const std::vector<Color>& image,
-
                                                   int width, int height, int quality = 90) {
-
     return compress\_image(image, width, height, Config::perceptual\_lossy(quality));
-
 }
-
 inline std::vector<uint8\_t> compress\_aggressive(const std::vector<Color>& image,
-
                                                  int width, int height, int quality = 70) {
-
     return compress\_image(image, width, height, Config::aggressive\_lossy(quality));
-
 }
-
 } // namespace organic\_codec
 
-Pulse Code Modulation Compression (Audio)
+
+# Pulse Code Modulation Compression (Audio)
 
 The Hybrid Audio Compressor is designed to combine multiple audio compression techniques to achieve high compression ratios while preserving perceptual audio quality. It starts by preprocessing the PCM audio data, normalizing amplitudes, and removing any DC offset, which ensures that the subsequent transformations operate on a clean signal. Preprocessing also reduces the potential for clipping or scaling errors during compression.
 
