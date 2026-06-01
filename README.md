@@ -9085,297 +9085,466 @@ For talking head content (most video conferencing, lectures, news), it's 5-10x b
 
 File Size Comparison (1 hour of content)
 
-#include <iostream>
-
-#include <vector>
-
+#pragma once
 #include <cstdint>
-
-#include <algorithm>
-
+#include <vector>
 #include <cmath>
-
-#include <bitset>
-
-#include <map>
-
-#include <memory>
-
-#include <cassert>
-
-#include <random>
-
+#include <algorithm>
+#include <unordered_map>
 #include <queue>
-
 #include <array>
-
+#include <memory>
 #include <cstring>
-
-#include <chrono>
-
-#include <iomanip>
-
-#include <sstream>
-
-#include <unordered\_map>
-
-#include <set>
-
-#include <thread>
-
-#include <mutex>
-
-#include <condition\_variable>
-
+#include <bitset>
+#include <numeric>
+#include <limits>
+namespace organic_codec {
 // ============================================================================
-
-// COMPLETE ORGANIC COMPRESSOR - AUDIO + VIDEO + SYNC
-
+// PERCEPTUAL CONFIGURATION
 // ============================================================================
+enum class CompressionMode : uint8_t {
+    LOSSLESS = 0,           // Maximum compression, perfect reconstruction
+    PERCEPTUAL_LOSSY = 1,   // Human-optimized lossy, invisible errors
 
-namespace OrganicCompressor {
+    AGGRESSIVE_LOSSY = 2    // Higher compression, visible but acceptable errors
 
-// ============================================================================
 
-// CONSTANTS
-
-// ============================================================================
-
-constexpr size\_t MAX\_FRAME\_SIZE = 1920 \* 1080 \* 3;     // IMAX frame size
-
-constexpr size\_t MAX\_AUDIO\_FRAME = 65536;              // 64KB per audio frame
-
-constexpr size\_t BLOCK\_SIZE = 512;                    // Audio block size
-
-constexpr size\_t MDCT\_SIZE = 1024;                    // MDCT transform size
-
-constexpr size\_t LPC\_ORDER = 12;                      // LPC prediction order
-
-constexpr size\_t MAX\_CARRIERS = 8;                    // Max sinusoidal carriers
-
-constexpr size\_t MAX\_VOXELS = 64;                     // Max voxel elements
-
-constexpr size\_t MAX\_ATOMS = 32;                      // Max matching pursuit atoms
-
-constexpr size\_t NOISE\_BANDS = 24;                    // Perceptual noise bands
-
-// ============================================================================
-
-// ENUMERATIONS
-
-// ============================================================================
-
-enum class FrameType : uint8 {
-
-    I\_FRAME = 0,        // Intra-coded (full frame)
-
-    P\_FRAME = 1,        // Predictive-coded (forward)
-
-    B\_FRAME = 2,        // Bi-directional predictive
-
-    IDR\_FRAME = 3,      // Instantaneous Decoder Refresh
-
-    S\_FRAME = 4,        // Scene change frame
-
-    A\_FRAME = 5         // Audio frame
 
 };
+struct PerceptualConfig {
+    // Luminance sensitivity (human eye is more sensitive to luminance than chrominance)
+    float luminance_weight = 1.0f;
 
-enum class AudioMode : uint8 {
-
-    MODE\_MDCT\_DIRECT = 0,    // Direct MDCT + quantization
-
-    MODE\_CARRIER = 1,        // Sinusoidal/carrier coding
-
-    MODE\_LPC = 2,            // Linear predictive coding
-
-    MODE\_VOXEL = 3,          // Sparse 3D voxel grid
-
-    MODE\_NOISE = 4,          // Shaped noise
-
-    MODE\_MATCHING = 5,       // Matching pursuit atoms
-
-    MODE\_FRACTAL = 6,        // Self-similarity/fractal coding
-
-    MODE\_HYBRID = 7,         // Hybrid of multiple modes
-
-    MODE\_XOR\_DELTA = 8,      // XOR + Delta transform mode
-
-    MODE\_SILENCE = 9         // Silence detection
-
-};
-
-enum class QualityMode : uint8 {
-
-    QUALITY\_MASTER = 0,      // Lossless / transparent (0.99+ correlation)
-
-    QUALITY\_STUDIO = 1,      // Near-transparent (0.98-0.99)
-
-    QUALITY\_HIGH = 2,        // High quality (0.95-0.98)
-
-    QUALITY\_STANDARD = 3,    // Standard streaming (0.90-0.95)
-
-    QUALITY\_MOBILE = 4,      // Mobile optimized (0.85-0.90)
-
-    QUALITY\_LOW = 5          // Maximum compression (0.80-0.85)
-
-};
-
-// ============================================================================
-
-// SYNC STRUCTURES
-
-// ============================================================================
-
-struct Timestamp {
-
-    uint64\_t pts;  // Presentation timestamp
-
-    uint64\_t dts;  // Decode timestamp
-
-    uint64\_t duration;
+    float chrominance_weight = 0.5f;
 
     
 
-    Timestamp() : pts(0), dts(0), duration(0) {}
+    // Contrast masking (errors are less visible in high-contrast areas)
 
-    Timestamp(uint64\_t p, uint64\_t d, uint64\_t dur) : pts(p), dts(d), duration(dur) {}
+    bool enable_contrast_masking = true;
 
-    
-
-    bool operator<(const Timestamp& other) const { return pts < other.pts; }
-
-    bool operator>(const Timestamp& other) const { return pts > other.pts; }
-
-};
-
-struct AVSyncPacket {
-
-    uint32\_t stream\_id;
-
-    FrameType type;
-
-    Timestamp timestamp;
-
-    std::vector<uint8\_t> data;
-
-    uint32\_t frame\_number;
-
-    float quality\_metric;
+    float contrast_threshold = 0.1f;
 
     
 
-    // For audio-video alignment
+    // Frequency sensitivity (errors are less visible in textured areas)
 
-    uint64\_t audio\_sample\_offset;
+    bool enable_frequency_sensitivity = true;
 
-    uint64\_t video\_frame\_offset;
+    float high_freq_mask = 0.3f;
 
-};
-
-class SyncManager {
-
-private:
-
-    std::priority\_queue<AVSyncPacket, std::vector<AVSyncPacket>, 
-
-                        std::greater<AVSyncPacket>> packet\_queue;
-
-    std::mutex queue\_mutex;
-
-    std::condition\_variable cv;
-
-    uint64\_t current\_pts = 0;
-
-    double clock\_rate = 90000.0;  // 90kHz for MPEG-style timestamps
+    float low_freq_sensitivity = 1.0f;
 
     
 
-public:
+    // Just Noticeable Difference (JND) thresholds
 
-    void push\_packet(const AVSyncPacket& packet) {
+    float jnd_luminance = 2.0f;    // 2 units in 0-255 range
 
-        std::lock\_guard<std::mutex> lock(queue\_mutex);
+    float jnd_chrominance = 4.0f;   // 4 units for color
 
-        packet\_queue.push(packet);
+    
 
-        cv.notify\_one();
+    // Temporal/spatial pooling
+
+    bool enable_pooling = true;
+
+    float pooling_window = 8.0f;     // pixels
+
+    
+
+    // Quality factor (0-100, higher = better quality)
+
+    int quality = 90;
+
+    
+
+    PerceptualConfig() {
+
+        update_from_quality();
 
     }
 
     
 
-    bool pop\_packet(AVSyncPacket& packet, int timeout\_ms = 0) {
+    void update_from_quality() {
 
-        std::unique\_lock<std::mutex> lock(queue\_mutex);
+        // Quality mapping: 0-100 -> perceptual thresholds
+
+        float q = std::clamp(float(quality) / 100.0f, 0.01f, 1.0f);
+
+        jnd_luminance = 2.0f \* (1.0f - q \* 0.8f);
+
+        jnd_chrominance = 4.0f \* (1.0f - q \* 0.7f);
+
+        high_freq_mask = 0.3f + q \* 0.5f;
+
+    }
+
+
+
+};
+// ============================================================================
+// MAIN CONFIGURATION
+// ============================================================================
+struct Config {
+    // Mode selection
+    CompressionMode mode = CompressionMode::LOSSLESS;
+
+    PerceptualConfig perceptual;
+
+    
+
+    // Region formation (entropy-aware splitting)
+
+    int min_region_size = 8;
+
+    float entropy_threshold = 0.5f;
+
+    int max_palette_size = 256;
+
+    int max_region_depth = 8;
+
+    
+
+    // Feature toggles
+
+    bool enable_region_model = true;
+
+    bool enable_palette_reduction = true;
+
+    bool enable_directional_prediction = true;
+
+    bool enable_xor_transform = true;
+
+    bool enable_delta_transform = true;
+
+    bool enable_palette_delta_encoding = true;
+
+    bool enable_residual_separation = true;
+
+    bool enable_context_adaptation = true;
+
+    bool enable_rdo = true;
+
+    bool enable_gradient_prediction = true;
+
+    bool enable_adaptive_path = true;
+
+    
+
+    // Compression control
+
+    float lambda = 0.05f;
+
+    bool near_lossless = false;
+
+    float near_lossless_tolerance = 2.0f;
+
+    
+
+    // Entropy coding
+
+    int ans_precision = 12;
+
+    int context_depth = 3;
+
+    
+
+    // Lossless-specific (maximum compression)
+
+    bool lossless_use_deep_context = true;
+
+    bool lossless_use_all_predictors = true;
+
+    int lossless_max_palette = 256;
+
+    
+
+    // Lossy-specific (perceptual optimization)
+
+    float perceptual_lambda_multiplier = 1.0f;
+
+    bool enable_adaptive_quantization = true;
+
+    
+
+    // Helper to configure for maximum lossless compression
+
+    static Config max_lossless() {
+
+        Config cfg;
+
+        cfg.mode = CompressionMode::LOSSLESS;
+
+        cfg.entropy_threshold = 0.3f;           // More aggressive splitting
+
+        cfg.max_palette_size = 256;             // Maximum palette
+
+        cfg.enable_xor_transform = true;
+
+        cfg.enable_delta_transform = true;
+
+        cfg.enable_palette_delta_encoding = true;
+
+        cfg.enable_context_adaptation = true;
+
+        cfg.context_depth = 3;                  // Deep context
+
+        cfg.lossless_use_deep_context = true;
+
+        cfg.lossless_use_all_predictors = true;
+
+        return cfg;
+
+    }
+
+    
+
+    // Helper to configure for perceptual lossy (invisible errors)
+
+    static Config perceptual_lossy(int quality = 90) {
+
+        Config cfg;
+
+        cfg.mode = CompressionMode::PERCEPTUAL_LOSSY;
+
+        cfg.perceptual.quality = quality;
+
+        cfg.perceptual.update_from_quality();
+
+        cfg.entropy_threshold = 0.5f;
+
+        cfg.max_palette_size = std::max(64, quality \* 2);
+
+        cfg.near_lossless = true;
+
+        cfg.near_lossless_tolerance = cfg.perceptual.jnd_luminance;
+
+        cfg.lambda = 0.05f \* (1.0f - quality / 100.0f);
+
+        cfg.enable_adaptive_quantization = true;
+
+        return cfg;
+
+    }
+
+    
+
+    // Helper to configure for aggressive lossy
+
+    static Config aggressive_lossy(int quality = 70) {
+
+        Config cfg = perceptual_lossy(quality);
+
+        cfg.mode = CompressionMode::AGGRESSIVE_LOSSY;
+
+        cfg.max_palette_size = std::max(32, quality);
+
+        cfg.near_lossless_tolerance = cfg.perceptual.jnd_luminance \* 2.0f;
+
+        cfg.lambda = 0.2f \* (1.0f - quality / 100.0f);
+
+        return cfg;
+
+    }
+
+
+
+};
+// ============================================================================
+// PERCEPTUAL METRICS (CIEDE2000 approximation)
+// ============================================================================
+class PerceptualMetric {
+public:
+    // Convert RGB to LAB-like space for perceptual distance
+    static void rgb_to_lab(const Color\& c, float\& L, float\& a, float\& b) {
+
+        // Convert to XYZ (D65 illuminant)
+
+        float r = c.r / 255.0f;
+
+        float g = c.g / 255.0f;
+
+        float b_ = c.b / 255.0f;
 
         
 
-        if (timeout\_ms > 0) {
+        r = (r > 0.04045f) ? std::pow((r + 0.055f) / 1.055f, 2.4f) : r / 12.92f;
 
-            cv.wait\_for(lock, std::chrono::milliseconds(timeout\_ms),
+        g = (g > 0.04045f) ? std::pow((g + 0.055f) / 1.055f, 2.4f) : g / 12.92f;
 
-                       [this] { return !packet\_queue.empty(); });
+        b_ = (b_ > 0.04045f) ? std::pow((b_ + 0.055f) / 1.055f, 2.4f) : b_ / 12.92f;
 
-        } else {
+        
 
-            cv.wait(lock, [this] { return !packet\_queue.empty(); });
+        float x = r \* 0.4124564f + g \* 0.3575761f + b_ \* 0.1804375f;
+
+        float y = r \* 0.2126729f + g \* 0.7151522f + b_ \* 0.0721750f;
+
+        float z = r \* 0.0193339f + g \* 0.1191920f + b_ \* 0.9503041f;
+
+        
+
+        // XYZ to LAB
+
+        float xn = 0.95047f, yn = 1.0f, zn = 1.08883f;
+
+        auto f = \[](float t) {
+
+            return (t > 0.008856f) ? std::cbrt(t) : (7.787f \* t + 16.0f / 116.0f);
+
+        };
+
+        
+
+        L = 116.0f \* f(y / yn) - 16.0f;
+
+        a = 500.0f \* (f(x / xn) - f(y / yn));
+
+        b = 200.0f \* (f(y / yn) - f(z / zn));
+
+    }
+
+    
+
+    // Perceptual distance (CIEDE2000 approximation)
+
+    static float perceptual_distance(const Color\& c1, const Color\& c2) {
+
+        float L1, a1, b1, L2, a2, b2;
+
+        rgb_to_lab(c1, L1, a1, b1);
+
+        rgb_to_lab(c2, L2, a2, b2);
+
+        
+
+        float dL = L1 - L2;
+
+        float da = a1 - a2;
+
+        float db = b1 - b2;
+
+        
+
+        // Weighted Euclidean in LAB space
+
+        return std::sqrt(dL\*dL + da\*da + db\*db);
+
+    }
+
+    
+
+    // Just Noticeable Difference (JND) threshold
+
+    static bool is_perceptible(const Color\& c1, const Color\& c2, float jnd_threshold = 2.3f) {
+
+        return perceptual_distance(c1, c2) > jnd_threshold;
+
+    }
+
+    
+
+    // Luminance-only perceptual error
+
+    static float luminance_error(const Color\& c1, const Color\& c2) {
+
+        float lum1 = c1.luminance_f();
+
+        float lum2 = c2.luminance_f();
+
+        return std::abs(lum1 - lum2);
+
+    }
+
+    
+
+    // Contrast masking factor (errors less visible in high contrast)
+
+    static float contrast_mask(const std::vector<Color>\& neighborhood) {
+
+        if (neighborhood.empty()) return 1.0f;
+
+        
+
+        float mean_lum = 0.0f;
+
+        for (const auto\& c : neighborhood) {
+
+            mean_lum += c.luminance_f();
 
         }
 
-        
-
-        if (packet\_queue.empty()) return false;
+        mean_lum /= neighborhood.size();
 
         
 
-        packet = packet\_queue.top();
+        float variance = 0.0f;
 
-        packet\_queue.pop();
+        for (const auto\& c : neighborhood) {
 
-        return true;
+            float d = c.luminance_f() - mean_lum;
+
+            variance += d \* d;
+
+        }
+
+        variance /= neighborhood.size();
+
+        
+
+        // Higher variance = more masking = lower sensitivity
+
+        float mask = 1.0f / (1.0f + variance \* 2.0f);
+
+        return std::clamp(mask, 0.2f, 1.0f);
 
     }
 
     
 
-    uint64\_t get\_current\_pts() const { return current\_pts; }
+    // Frequency sensitivity (texture masking)
 
-    
+    static float frequency_sensitivity(const std::vector<float>\& gradients) {
 
-    void set\_clock\_rate(double rate) { clock\_rate = rate; }
+        if (gradients.empty()) return 1.0f;
 
-    
+        
 
-    double get\_time\_seconds(uint64\_t pts) const {
+        float mean_grad = 0.0f;
 
-        return double(pts) / clock\_rate;
+        for (float g : gradients) mean_grad += g;
+
+        mean_grad /= gradients.size();
+
+        
+
+        // High frequency = less sensitivity
+
+        return std::clamp(1.0f / (1.0f + mean_grad \* 10.0f), 0.3f, 1.0f);
 
     }
+
+
 
 };
-
 // ============================================================================
-
-// COLOR AND VECTOR TYPES
-
+// BASIC TYPES
 // ============================================================================
-
 struct Color {
-
-    uint8\_t r, g, b;
-
+    uint8_t r, g, b;
     Color() : r(0), g(0), b(0) {}
 
-    Color(uint8\_t \_r, uint8\_t \_g, uint8\_t \_b) : r(\_r), g(\_g), b(\_b) {}
+    Color(uint8_t _r, uint8_t _g, uint8_t _b) : r(_r), g(_g), b(_b) {}
 
     
 
-    uint32\_t to\_rgb32() const { return (r << 16) | (g << 8) | b; }
+    uint32_t to_rgb32() const { return (r << 16) | (g << 8) | b; }
 
     
 
-    Color operator-(const Color& other) const {
+    Color operator-(const Color\& other) const {
 
         return Color(abs(r - other.r), abs(g - other.g), abs(b - other.b));
 
@@ -9383,7 +9552,7 @@ struct Color {
 
     
 
-    Color operator^(const Color& other) const {
+    Color operator^(const Color\& other) const {
 
         return Color(r ^ other.r, g ^ other.g, b ^ other.b);
 
@@ -9391,91 +9560,44 @@ struct Color {
 
     
 
-    Color operator+(const Color& other) const {
+    bool operator==(const Color\& other) const {
 
-        return Color(std::min(255, r + other.r), std::min(255, g + other.g), std::min(255, b + other.b));
-
-    }
-
-    
-
-    bool operator==(const Color& other) const {
-
-        return r == other.r && g == other.g && b == other.b;
+        return r == other.r \&\& g == other.g \&\& b == other.b;
 
     }
 
     
 
-    int luminance() const { return (r + g + b) / 3; }
+    int luminance() const { return r + g + b; }
 
-    float luminance\_f() const { return (r + g + b) / 3.0f; }
+    float luminance_f() const { return (r + g + b) / 3.0f; }
 
-    
 
-    static Color from\_luminance(int lum) {
-
-        lum = std::clamp(lum, 0, 255);
-
-        return Color(lum, lum, lum);
-
-    }
 
 };
-
 struct Vec2 {
-
     int x, y;
-
     Vec2() : x(0), y(0) {}
 
-    Vec2(int \_x, int \_y) : x(\_x), y(\_y) {}
+    Vec2(int _x, int _y) : x(_x), y(_y) {}
 
     
 
-    Vec2 operator+(const Vec2& other) const { return Vec2(x + other.x, y + other.y); }
+    Vec2 operator+(const Vec2\& other) const { return Vec2(x + other.x, y + other.y); }
 
-    Vec2 operator-(const Vec2& other) const { return Vec2(x - other.x, y - other.y); }
+    Vec2 operator-(const Vec2\& other) const { return Vec2(x - other.x, y - other.y); }
 
-    bool operator==(const Vec2& other) const { return x == other.x && y == other.y; }
+    bool operator==(const Vec2\& other) const { return x == other.x \&\& y == other.y; }
+
+
 
 };
-
-// ============================================================================
-
-// TRIANGLE STRUCTURE (Organic Core)
-
-// ============================================================================
-
 struct Triangle {
-
     Vec2 v0, v1, v2;
-
-    Color color0, color1, color2;
-
-    uint8\_t subdivision\_level;
-
-    float error;
-
-    uint32\_t motion\_ref;  // Reference frame for motion
-
-    
-
-    Triangle() : v0(), v1(), v2(), color0(), color1(), color2(), 
-
-                 subdivision\_level(0), error(0.0f), motion\_ref(0) {}
-
-    
-
-    Triangle(Vec2 \_v0, Vec2 \_v1, Vec2 \_v2) : v0(\_v0), v1(\_v1), v2(\_v2), 
-
-        subdivision\_level(0), error(0.0f), motion\_ref(0) {}
-
-    
 
     bool contains(int x, int y) const {
 
-        auto sign = [](int x1, int y1, int x2, int y2, int x3, int y3) {
+        auto sign = \[](int x1, int y1, int x2, int y2, int x3, int y3) {
 
             return (x1 - x3) \* (y2 - y3) - (x2 - x3) \* (y1 - y3);
 
@@ -9487,11 +9609,11 @@ struct Triangle {
 
         int d3 = sign(x, y, v2.x, v2.y, v0.x, v0.y);
 
-        bool has\_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+        bool has_neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
 
-        bool has\_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
+        bool has_pos = (d1 > 0) || (d2 > 0) || (d3 > 0);
 
-        return !(has\_neg && has\_pos);
+        return !(has_neg \&\& has_pos);
 
     }
 
@@ -9507,773 +9629,510 @@ struct Triangle {
 
     int area() const {
 
-        return abs((v1.x - v0.x) \* (v2.y - v0.y) - (v2.x - v0.x) \* (v1.y - v0.y)) / 2;
+        return abs((v1.x - v0.x) \* (v2.y - v0.y) - 
+
+                   (v2.x - v0.x) \* (v1.y - v0.y)) / 2;
 
     }
 
     
 
-    void get\_bounds(int& min\_x, int& max\_x, int& min\_y, int& max\_y) const {
+    void get_bounds(int\& min_x, int\& max_x, int\& min_y, int\& max_y) const {
 
-        min\_x = std::min({v0.x, v1.x, v2.x});
+        min_x = std::min({v0.x, v1.x, v2.x});
 
-        max\_x = std::max({v0.x, v1.x, v2.x});
+        max_x = std::max({v0.x, v1.x, v2.x});
 
-        min\_y = std::min({v0.y, v1.y, v2.y});
+        min_y = std::min({v0.y, v1.y, v2.y});
 
-        max\_y = std::max({v0.y, v1.y, v2.y});
-
-    }
-
-    
-
-    Color interpolate\_color(int x, int y) const {
-
-        // Barycentric interpolation
-
-        int denom = (v1.y - v2.y) \* (v0.x - v2.x) + (v2.x - v1.x) \* (v0.y - v2.y);
-
-        if (denom == 0) return color0;
-
-        
-
-        int a = ((v1.y - v2.y) \* (x - v2.x) + (v2.x - v1.x) \* (y - v2.y)) / denom;
-
-        int b = ((v2.y - v0.y) \* (x - v2.x) + (v0.x - v2.x) \* (y - v2.y)) / denom;
-
-        int c = 1 - a - b;
-
-        
-
-        return Color(
-
-            std::clamp((a \* color0.r + b \* color1.r + c \* color2.r), 0, 255),
-
-            std::clamp((a \* color0.g + b \* color1.g + c \* color2.g), 0, 255),
-
-            std::clamp((a \* color0.b + b \* color1.b + c \* color2.b), 0, 255)
-
-        );
+        max_y = std::max({v0.y, v1.y, v2.y});
 
     }
+
+
 
 };
-
 // ============================================================================
-
-// XOR + DELTA TRANSFORM (From Original)
-
+// COLOR METRICS
 // ============================================================================
+inline int color_distance_squared(const Color& a, const Color& b) {
+    int dr = int(a.r) - int(b.r);
+    int dg = int(a.g) - int(b.g);
 
-class XORDeltaTransform {
+    int db = int(a.b) - int(b.b);
 
+    return dr\*dr + dg\*dg + db\*db;
+
+
+
+}
+inline float color_distance(const Color& a, const Color& b) {
+    return std::sqrt(float(color_distance_squared(a, b)));
+
+}
+// ============================================================================
+// ENTROPY CALCULATOR
+// ============================================================================
+class EntropyCalculator {
 public:
-
-    static uint8\_t modular\_fold(uint8\_t value, uint8\_t offset, uint8\_t max\_value = 255) {
-
-        return (value + offset) % max\_value;
-
-    }
-
-    
-
-    static uint8\_t modular\_unfold(uint8\_t folded, uint8\_t offset, uint8\_t max\_value = 255) {
-
-        return (folded + max\_value - offset) % max\_value;
-
-    }
-
-    
-
-    static std::vector<uint8\_t> xor\_encode(const std::vector<uint8\_t>& data) {
-
-        if (data.empty()) return {};
-
-        std::vector<uint8\_t> encoded(data.size());
-
-        encoded[0] = data[0];
-
-        for (size\_t i = 1; i < data.size(); i++) {
-
-            encoded[i] = data[i] ^ data[i-1];
-
-        }
-
-        return encoded;
-
-    }
-
-    
-
-    static std::vector<uint8\_t> xor\_decode(const std::vector<uint8\_t>& encoded) {
-
-        if (encoded.empty()) return {};
-
-        std::vector<uint8\_t> decoded(encoded.size());
-
-        decoded[0] = encoded[0];
-
-        for (size\_t i = 1; i < encoded.size(); i++) {
-
-            decoded[i] = decoded[i-1] ^ encoded[i];
-
-        }
-
-        return decoded;
-
-    }
-
-    
-
-    static std::vector<int16\_t> delta\_encode(const std::vector<uint16\_t>& symbols) {
-
-        std::vector<int16\_t> deltas;
-
-        if (symbols.empty()) return deltas;
+    static float compute_entropy(const std::vector<uint32_t>& symbols) {
+        if (symbols.empty()) return 0.0f;
 
         
 
-        deltas.push\_back(int16\_t(symbols[0]));
+        std::unordered_map<uint32_t, int> freq;
 
-        for (size\_t i = 1; i < symbols.size(); i++) {
-
-            deltas.push\_back(int16\_t(symbols[i] - symbols[i-1]));
-
-        }
-
-        return deltas;
-
-    }
-
-    
-
-    static std::vector<uint16\_t> delta\_decode(const std::vector<int16\_t>& deltas) {
-
-        std::vector<uint16\_t> result;
-
-        if (deltas.empty()) return result;
+        for (auto s : symbols) freq\[s]++;
 
         
 
-        result.push\_back(uint16\_t(deltas[0]));
+        float entropy = 0.0f;
 
-        for (size\_t i = 1; i < deltas.size(); i++) {
+        float total = float(symbols.size());
 
-            result.push\_back(uint16\_t(int(result.back()) + deltas[i]));
+        for (auto\& \[sym, count] : freq) {
+
+            float p = count / total;
+
+            entropy -= p \* std::log2(p);
 
         }
 
-        return result;
+        return entropy;
 
     }
 
     
 
-    static uint8\_t calculate\_folding\_offset(const std::vector<uint8\_t>& block) {
+    static float compute_color_entropy(const std::vector<Color>\& colors) {
 
-        if (block.empty()) return 0;
+        if (colors.empty()) return 0.0f;
 
-        uint8\_t min\_val = \*std::min\_element(block.begin(), block.end());
+        
 
-        uint8\_t max\_val = \*std::max\_element(block.begin(), block.end());
+        std::unordered_map<uint32_t, int> freq;
 
-        uint16\_t range = max\_val - min\_val;
+        for (auto\& c : colors) freq\[c.to_rgb32()]++;
 
-        return static\_cast<uint8\_t>((min\_val + range / 3) % 256);
+        
+
+        float entropy = 0.0f;
+
+        float total = float(colors.size());
+
+        for (auto\& \[sym, count] : freq) {
+
+            float p = count / total;
+
+            entropy -= p \* std::log2(p);
+
+        }
+
+        return entropy;
 
     }
+
+
 
 };
-
 // ============================================================================
-
-// PERCEPTUAL AUDIO COMPRESSOR (From Original)
-
+// PERCEPTUAL RDO (Rate-Distortion Optimization with perceptual weights)
 // ============================================================================
+class PerceptualRDO {
+public:
+    PerceptualRDO(const Config& cfg) : config(cfg) {}
 
-class PerceptualAudioCompressor {
+    // Perceptual distortion metric
+
+    float compute_distortion(const Color\& original, const Color\& reconstructed,
+
+                             const std::vector<Color>\& neighborhood = {}) {
+
+        if (config.mode == CompressionMode::LOSSLESS) {
+
+            // Lossless: exact match required
+
+            return (original == reconstructed) ? 0.0f : 1e6f;
+
+        }
+
+        
+
+        // Lossy: perceptual distance
+
+        float perceptual_dist = PerceptualMetric::perceptual_distance(original, reconstructed);
+
+        
+
+        // Apply luminance weighting
+
+        float lum_weight = config.perceptual.luminance_weight;
+
+        float lum_orig = original.luminance_f();
+
+        if (lum_orig < 0.1f || lum_orig > 0.9f) {
+
+            // Dark and bright areas have lower sensitivity
+
+            lum_weight \*= 0.7f;
+
+        }
+
+        
+
+        // Apply contrast masking
+
+        float contrast_mask = 1.0f;
+
+        if (config.perceptual.enable_contrast_masking \&\& !neighborhood.empty()) {
+
+            contrast_mask = PerceptualMetric::contrast_mask(neighborhood);
+
+        }
+
+        
+
+        // Apply frequency sensitivity
+
+        float freq_sensitivity = 1.0f;
+
+        if (config.perceptual.enable_frequency_sensitivity) {
+
+            // Simplified: use local gradient as frequency proxy
+
+            float grad = 0.0f;
+
+            for (size_t i = 1; i < std::min(size_t(4), neighborhood.size()); i++) {
+
+                grad += std::abs(neighborhood\[i].luminance_f() - neighborhood\[i-1].luminance_f());
+
+            }
+
+            grad = grad / std::min(size_t(4), neighborhood.size());
+
+            freq_sensitivity = 1.0f / (1.0f + grad \* 5.0f);
+
+        }
+
+        
+
+        float weighted_dist = perceptual_dist \* lum_weight \* contrast_mask \* freq_sensitivity;
+
+        
+
+        // JND thresholding: errors below JND are invisible
+
+        if (weighted_dist < config.perceptual.jnd_luminance) {
+
+            weighted_dist \*= 0.1f;  // heavily discount invisible errors
+
+        }
+
+        
+
+        return weighted_dist;
+
+    }
+
+    
+
+    // Rate-distortion cost with perceptual weighting
+
+    float compute_cost(float bits, float distortion, const Color\& original, 
+
+                       const Color\& reconstructed, const std::vector<Color>\& neighborhood) {
+
+        float perceptual_dist = compute_distortion(original, reconstructed, neighborhood);
+
+        float lambda = config.lambda \* config.perceptual_lambda_multiplier;
+
+        
+
+        // For lossless, distortion must be zero
+
+        if (config.mode == CompressionMode::LOSSLESS \&\& perceptual_dist > 0.01f) {
+
+            return 1e30f;
+
+        }
+
+        
+
+        return bits + lambda \* perceptual_dist;
+
+    }
+
+    
+
+    // Adaptive palette reduction based on perceptual importance
+
+    bool should_merge_colors(const Color\& c1, const Color\& c2, float freq1, float freq2) {
+
+        if (config.mode == CompressionMode::LOSSLESS) {
+
+            return false;  // Never merge in lossless mode
+
+        }
+
+        
+
+        float perceptual_dist = PerceptualMetric::perceptual_distance(c1, c2);
+
+        float jnd = config.perceptual.jnd_luminance;
+
+        
+
+        // Merge if perceptually similar and at least one is infrequent
+
+        return (perceptual_dist < jnd) \&\& (freq1 < 0.01f || freq2 < 0.01f);
+
+    }
+
+    
+
+    // Adaptive quantization step for residuals
+
+    int quantize_residual(int residual, int local_complexity) {
+
+        if (config.mode == CompressionMode::LOSSLESS) {
+
+            return residual;  // No quantization in lossless
+
+        }
+
+        
+
+        float q_step = config.perceptual.jnd_luminance;
+
+        if (config.enable_adaptive_quantization) {
+
+            // Coarser quantization in complex areas
+
+            q_step \*= (1.0f + local_complexity \* 0.5f);
+
+        }
+
+        
+
+        return int(std::round(float(residual) / q_step)) \* int(q_step);
+
+    }
+
+    
+
+
+
+
+
+
 
 private:
-
-    // Psychoacoustic model constants
-
-    static constexpr size\_t BARK\_BANDS = 25;
-
-    static constexpr float BARK\_CENTERS[BARK\_BANDS] = {
-
-        50, 150, 250, 350, 450, 570, 700, 840, 1000, 1170, 1370, 1600,
-
-        1850, 2150, 2500, 2900, 3400, 4000, 4800, 5800, 7000, 8500,
-
-        10500, 13500, 20000
-
-    };
-
-    
-
-    float hz\_to\_bark(float freq\_hz) {
-
-        return 13.0f \* atan(0.00076f \* freq\_hz) + 3.5f \* atan(pow(freq\_hz / 7500.0f, 2));
-
-    }
-
-    
-
-    float bark\_to\_hz(float bark) {
-
-        return 600 \* sinh(bark / 6.0f);
-
-    }
-
-    
-
-    float absolute\_threshold(float freq\_hz) {
-
-        float f = freq\_hz / 1000.0f;
-
-        return 3.64f \* pow(f, -0.8f) - 6.5f \* exp(-0.6f \* pow(f - 3.3f, 2)) + 0.001f \* pow(f, 4);
-
-    }
-
-    
-
-public:
-
-    std::vector<float> compute\_perceptual\_weights(const std::vector<float>& spectrum,
-
-                                                   float sample\_rate, float quality\_factor) {
-
-        std::vector<float> weights(spectrum.size(), 1.0f);
-
-        std::vector<float> bark\_energy(BARK\_BANDS, 1e-10f);
-
-        
-
-        size\_t num\_bins = spectrum.size();
-
-        float nyquist = sample\_rate / 2.0f;
-
-        
-
-        // Map to Bark bands
-
-        for (size\_t bin = 0; bin < num\_bins; bin++) {
-
-            float freq = (bin \* nyquist) / num\_bins;
-
-            float bark = hz\_to\_bark(freq);
-
-            int band = std::min(static\_cast<int>(bark), BARK\_BANDS - 1);
-
-            bark\_energy[band] += spectrum[bin] \* spectrum[bin];
-
-        }
-
-        
-
-        // Compute masking thresholds
-
-        std::vector<float> thresholds(BARK\_BANDS);
-
-        for (int b = 0; b < BARK\_BANDS; b++) {
-
-            float freq = bark\_to\_hz(b);
-
-            float abs\_thresh = absolute\_threshold(freq);
-
-            float energy\_db = 10.0f \* log10(bark\_energy[b] + 1e-10f);
-
-            thresholds[b] = std::max(energy\_db, abs\_thresh);
-
-        }
-
-        
-
-        // Calculate weights
-
-        for (size\_t bin = 0; bin < num\_bins; bin++) {
-
-            float freq = (bin \* nyquist) / num\_bins;
-
-            float bark = hz\_to\_bark(freq);
-
-            int band = std::min(static\_cast<int>(bark), BARK\_BANDS - 1);
-
-            
-
-            float energy = 20.0f \* log10(std::abs(spectrum[bin]) + 1e-10f);
-
-            float snr = energy - thresholds[band];
-
-            
-
-            if (snr > 0) {
-
-                weights[bin] = 1.0f / (1.0f + snr / 20.0f);
-
-            } else {
-
-                weights[bin] = 2.0f;
-
-            }
-
-            
-
-            weights[bin] = std::pow(weights[bin], 1.0f - quality\_factor);
-
-            weights[bin] = std::max(0.1f, std::min(weights[bin], 5.0f));
-
-        }
-
-        
-
-        return weights;
-
-    }
-
-    
-
-    AudioMode select\_best\_mode(const std::vector<float>& audio\_block, QualityMode quality) {
-
-        float energy = 0.0f, peak = 0.0f, harmonic\_energy = 0.0f;
-
-        
-
-        for (size\_t i = 0; i < audio\_block.size(); i++) {
-
-            energy += audio\_block[i] \* audio\_block[i];
-
-            peak = std::max(peak, std::abs(audio\_block[i]));
-
-        }
-
-        
-
-        // Check for silence
-
-        if (energy < 0.0001f) return AudioMode::MODE\_SILENCE;
-
-        
-
-        // Compute spectral flatness
-
-        std::vector<float> spectrum(std::min(audio\_block.size(), size\_t(256)));
-
-        for (size\_t i = 0; i < spectrum.size(); i++) {
-
-            spectrum[i] = std::abs(audio\_block[i]);
-
-        }
-
-        
-
-        for (size\_t i = 1; i < spectrum.size() - 1; i++) {
-
-            if (spectrum[i] > spectrum[i-1] && spectrum[i] > spectrum[i+1]) {
-
-                harmonic\_energy += spectrum[i];
-
-            }
-
-        }
-
-        
-
-        float harmonic\_ratio = (energy > 0) ? harmonic\_energy / energy : 0.0f;
-
-        
-
-        // Mode selection based on characteristics
-
-        if (quality <= QualityMode::QUALITY\_HIGH) {
-
-            return AudioMode::MODE\_MDCT\_DIRECT;
-
-        }
-
-        
-
-        if (harmonic\_ratio > 0.4f) return AudioMode::MODE\_CARRIER;
-
-        if (peak > 0.6f && harmonic\_ratio < 0.2f) return AudioMode::MODE\_VOXEL;
-
-        if (harmonic\_ratio > 0.2f) return AudioMode::MODE\_LPC;
-
-        if (energy < 0.01f) return AudioMode::MODE\_NOISE;
-
-        
-
-        return AudioMode::MODE\_HYBRID;
-
-    }
+    Config config;
 
 };
-
 // ============================================================================
-
-// AUDIO FRAME ENCODER (All Modes)
-
+// PALETTE WITH PERCEPTUAL OPTIMIZATION
 // ============================================================================
-
-class AudioFrameEncoder {
-
-private:
-
-    PerceptualAudioCompressor perceptual;
-
-    XORDeltaTransform xor\_delta;
-
-    
-
+class Palette {
 public:
+    std::vector<Color> colors;
+    std::unordered_map<uint32_t, uint16_t> index_map;
 
-    std::vector<uint8\_t> encode\_frame(const std::vector<float>& audio,
-
-                                      AudioMode mode,
-
-                                      QualityMode quality,
-
-                                      float sample\_rate) {
-
-        std::vector<uint8\_t> encoded;
-
-        
-
-        // Write mode and quality
-
-        encoded.push\_back(static\_cast<uint8\_t>(mode));
-
-        encoded.push\_back(static\_cast<uint8\_t>(quality));
-
-        
-
-        switch (mode) {
-
-            case AudioMode::MODE\_MDCT\_DIRECT:
-
-                encoded = encode\_mdct(audio, quality, sample\_rate);
-
-                break;
-
-            case AudioMode::MODE\_CARRIER:
-
-                encoded = encode\_carrier(audio, quality);
-
-                break;
-
-            case AudioMode::MODE\_LPC:
-
-                encoded = encode\_lpc(audio, quality);
-
-                break;
-
-            case AudioMode::MODE\_VOXEL:
-
-                encoded = encode\_voxel(audio, quality);
-
-                break;
-
-            case AudioMode::MODE\_NOISE:
-
-                encoded = encode\_noise(audio, quality);
-
-                break;
-
-            case AudioMode::MODE\_XOR\_DELTA:
-
-                encoded = encode\_xor\_delta(audio, quality);
-
-                break;
-
-            case AudioMode::MODE\_SILENCE:
-
-                encoded = encode\_silence(audio);
-
-                break;
-
-            default:
-
-                encoded = encode\_mdct(audio, quality, sample\_rate);
-
-        }
-
-        
-
-        // Apply XOR transform for additional compression
-
-        if (encoded.size() > 10) {
-
-            auto xored = xor\_delta.xor\_encode(encoded);
-
-            if (xored.size() < encoded.size()) {
-
-                encoded.insert(encoded.begin(), 0x01);  // XOR flag
-
-                encoded.insert(encoded.begin() + 1, xored.begin(), xored.end());
-
-            } else {
-
-                encoded.insert(encoded.begin(), 0x00);  // No XOR
-
-            }
-
-        }
-
-        
-
-        return encoded;
-
-    }
+    std::vector<int16_t> delta_encoded;
 
     
 
-private:
+    void build(const std::vector<Color>\& pixel_colors, int max_size, 
 
-    std::vector<uint8\_t> encode\_mdct(const std::vector<float>& audio,
+               bool near_lossless, float tolerance, bool lossless_mode) {
 
-                                     QualityMode quality, float sample\_rate) {
-
-        std::vector<uint8\_t> encoded;
+        if (pixel_colors.empty()) return;
 
         
 
-        // Simple MDCT simulation (using DCT)
+        // Frequency counting
 
-        size\_t n = audio.size();
+        std::unordered_map<uint32_t, int> freq;
 
-        std::vector<float> mdct\_coeffs(n / 2, 0.0f);
+        for (const auto\& c : pixel_colors) {
+
+            freq\[c.to_rgb32()]++;
+
+        }
 
         
 
-        for (size\_t k = 0; k < n / 2; k++) {
+        // Convert to vector and sort by frequency
 
-            float sum = 0.0f;
+        std::vector<std::pair<uint32_t, int>> freq_vec(freq.begin(), freq.end());
 
-            for (size\_t i = 0; i < n; i++) {
+        std::sort(freq_vec.begin(), freq_vec.end(),
 
-                sum += audio[i] \* cos(M\_PI / n \* (i + 0.5f + n / 4.0f) \* (k + 0.5f));
+                  \[](const auto\& a, const auto\& b) { return a.second > b.second; });
+
+        
+
+        if (lossless_mode) {
+
+            // Lossless: keep exact colors
+
+            colors.clear();
+
+            for (const auto\& \[rgb, count] : freq_vec) {
+
+                colors.push_back(Color((rgb >> 16) \& 0xFF, (rgb >> 8) \& 0xFF, rgb \& 0xFF));
+
+                if ((int)colors.size() >= max_size) break;
 
             }
 
-            mdct\_coeffs[k] = sum;
+        } else {
 
-        }
+            // Lossy: perceptual merging
 
-        
+            colors.clear();
 
-        // Quantize based on quality
-
-        float q\_step;
-
-        switch (quality) {
-
-            case QualityMode::QUALITY\_MASTER: q\_step = 0.0001f; break;
-
-            case QualityMode::QUALITY\_STUDIO: q\_step = 0.001f; break;
-
-            case QualityMode::QUALITY\_HIGH: q\_step = 0.005f; break;
-
-            case QualityMode::QUALITY\_STANDARD: q\_step = 0.01f; break;
-
-            case QualityMode::QUALITY\_MOBILE: q\_step = 0.02f; break;
-
-            default: q\_step = 0.05f;
-
-        }
-
-        
-
-        // Perceptual weighting
-
-        auto weights = perceptual.compute\_perceptual\_weights(mdct\_coeffs, sample\_rate,
-
-                                                             quality == QualityMode::QUALITY\_MASTER ? 1.0f : 0.7f);
-
-        
-
-        for (size\_t i = 0; i < mdct\_coeffs.size(); i++) {
-
-            float step = q\_step \* weights[i];
-
-            int16\_t quant = static\_cast<int16\_t>(mdct\_coeffs[i] / step);
-
-            encoded.push\_back((quant >> 8) & 0xFF);
-
-            encoded.push\_back(quant & 0xFF);
-
-        }
-
-        
-
-        return encoded;
-
-    }
-
-    
-
-    std::vector<uint8\_t> encode\_carrier(const std::vector<float>& audio, QualityMode quality) {
-
-        std::vector<uint8\_t> encoded;
-
-        std::vector<std::pair<float, float>> carriers;
-
-        
-
-        // Find dominant frequencies
-
-        std::vector<float> spectrum(audio.size());
-
-        for (size\_t i = 0; i < audio.size() && i < 256; i++) {
-
-            spectrum[i] = std::abs(audio[i]);
-
-        }
-
-        
-
-        float threshold = (quality == QualityMode::QUALITY\_MASTER) ? 0.02f : 0.1f;
-
-        
-
-        for (size\_t i = 1; i < spectrum.size() - 1 && carriers.size() < MAX\_CARRIERS; i++) {
-
-            if (spectrum[i] > spectrum[i-1] && spectrum[i] > spectrum[i+1] && spectrum[i] > threshold) {
-
-                carriers.emplace\_back(static\_cast<float>(i) / spectrum.size(), spectrum[i]);
-
-            }
-
-        }
-
-        
-
-        encoded.push\_back(static\_cast<uint8\_t>(carriers.size()));
-
-        
-
-        int bits\_per\_param = (quality == QualityMode::QUALITY\_MASTER) ? 16 : 8;
-
-        
-
-        for (const auto& [freq, amp] : carriers) {
-
-            if (bits\_per\_param == 16) {
-
-                uint16\_t freq\_quant = static\_cast<uint16\_t>(freq \* 65535);
-
-                uint16\_t amp\_quant = static\_cast<uint16\_t>(amp \* 65535);
-
-                encoded.push\_back((freq\_quant >> 8) & 0xFF);
-
-                encoded.push\_back(freq\_quant & 0xFF);
-
-                encoded.push\_back((amp\_quant >> 8) & 0xFF);
-
-                encoded.push\_back(amp\_quant & 0xFF);
-
-            } else {
-
-                encoded.push\_back(static\_cast<uint8\_t>(freq \* 255));
-
-                encoded.push\_back(static\_cast<uint8\_t>(amp \* 255));
-
-            }
-
-        }
-
-        
-
-        return encoded;
-
-    }
-
-    
-
-    std::vector<uint8\_t> encode\_lpc(const std::vector<float>& audio, QualityMode quality) {
-
-        std::vector<uint8\_t> encoded;
-
-        
-
-        // Autocorrelation
-
-        std::vector<float> autocorr(LPC\_ORDER + 1, 0.0f);
-
-        for (size\_t i = 0; i < audio.size(); i++) {
-
-            for (size\_t k = 0; k <= LPC\_ORDER && i + k < audio.size(); k++) {
-
-                autocorr[k] += audio[i] \* audio[i + k];
-
-            }
-
-        }
-
-        
-
-        // Levinson-Durbin
-
-        std::vector<float> lpc\_coeffs(LPC\_ORDER, 0.0f);
-
-        std::vector<float> prev\_coeffs(LPC\_ORDER, 0.0f);
-
-        float residual = autocorr[0];
-
-        
-
-        for (size\_t i = 0; i < LPC\_ORDER; i++) {
-
-            float rc = autocorr[i + 1];
-
-            for (size\_t j = 0; j < i; j++) {
-
-                rc -= prev\_coeffs[j] \* autocorr[i - j];
-
-            }
-
-            rc /= residual;
+            std::vector<bool> used(freq_vec.size(), false);
 
             
 
-            lpc\_coeffs[i] = rc;
+            for (size_t i = 0; i < freq_vec.size() \&\& (int)colors.size() < max_size; i++) {
 
-            for (size\_t j = 0; j < i; j++) {
+                if (used\[i]) continue;
 
-                lpc\_coeffs[j] = prev\_coeffs[j] - rc \* prev\_coeffs[i - 1 - j];
+                
+
+                Color base((freq_vec\[i].first >> 16) \& 0xFF,
+
+                          (freq_vec\[i].first >> 8) \& 0xFF,
+
+                          freq_vec\[i].first \& 0xFF);
+
+                
+
+                // Merge perceptually similar colors
+
+                int total_freq = freq_vec\[i].second;
+
+                float r_avg = base.r, g_avg = base.g, b_avg = base.b;
+
+                
+
+                for (size_t j = i + 1; j < freq_vec.size() \&\& (int)colors.size() < max_size; j++) {
+
+                    if (used\[j]) continue;
+
+                    
+
+                    Color other((freq_vec\[j].first >> 16) \& 0xFF,
+
+                               (freq_vec\[j].first >> 8) \& 0xFF,
+
+                               freq_vec\[j].first \& 0xFF);
+
+                    
+
+                    float dist = PerceptualMetric::perceptual_distance(base, other);
+
+                    if (dist < tolerance) {
+
+                        r_avg = (r_avg \* total_freq + other.r \* freq_vec\[j].second) / (total_freq + freq_vec\[j].second);
+
+                        g_avg = (g_avg \* total_freq + other.g \* freq_vec\[j].second) / (total_freq + freq_vec\[j].second);
+
+                        b_avg = (b_avg \* total_freq + other.b \* freq_vec\[j].second) / (total_freq + freq_vec\[j].second);
+
+                        total_freq += freq_vec\[j].second;
+
+                        used\[j] = true;
+
+                    }
+
+                }
+
+                
+
+                colors.push_back(Color(uint8_t(r_avg), uint8_t(g_avg), uint8_t(b_avg)));
+
+            }
+
+        }
+
+        
+
+        // Sort by similarity for better delta encoding
+
+        sort_by_similarity();
+
+        
+
+        // Build delta encoding
+
+        if (colors.size() > 1) {
+
+            delta_encode_palette();
+
+        }
+
+        
+
+        rebuild_index_map();
+
+    }
+
+    
+
+    void sort_by_similarity() {
+
+        if (colors.size() < 2) return;
+
+        
+
+        std::vector<Color> ordered;
+
+        ordered.reserve(colors.size());
+
+        ordered.push_back(colors\[0]);
+
+        
+
+        std::vector<bool> used(colors.size(), false);
+
+        used\[0] = true;
+
+        
+
+        for (size_t i = 1; i < colors.size(); i++) {
+
+            int best_idx = -1;
+
+            float best_dist = std::numeric_limits<float>::max();
+
+            
+
+            for (size_t j = 0; j < colors.size(); j++) {
+
+                if (used\[j]) continue;
+
+                float dist = PerceptualMetric::perceptual_distance(ordered.back(), colors\[j]);
+
+                if (dist < best_dist) {
+
+                    best_dist = dist;
+
+                    best_idx = int(j);
+
+                }
 
             }
 
             
 
-            residual \*= (1.0f - rc \* rc);
+            if (best_idx >= 0) {
 
-            prev\_coeffs = lpc\_coeffs;
+                ordered.push_back(colors\[best_idx]);
 
-        }
-
-        
-
-        // Quantize
-
-        int bits\_per\_coeff = (quality == QualityMode::QUALITY\_MASTER) ? 12 : 8;
-
-        encoded.push\_back(LPC\_ORDER);
-
-        
-
-        for (size\_t i = 0; i < LPC\_ORDER; i++) {
-
-            if (bits\_per\_coeff == 12) {
-
-                uint16\_t quant = static\_cast<uint16\_t>((lpc\_coeffs[i] + 1.0f) \* 2047);
-
-                encoded.push\_back((quant >> 8) & 0xFF);
-
-                encoded.push\_back(quant & 0xFF);
-
-            } else {
-
-                encoded.push\_back(static\_cast<uint8\_t>((lpc\_coeffs[i] + 1.0f) \* 127));
+                used\[best_idx] = true;
 
             }
 
@@ -10281,47 +10140,136 @@ private:
 
         
 
-        float gain = std::sqrt(residual / audio.size());
-
-        encoded.push\_back(static\_cast<uint8\_t>(gain \* 255));
-
-        
-
-        return encoded;
+        colors = std::move(ordered);
 
     }
 
     
 
-    std::vector<uint8\_t> encode\_voxel(const std::vector<float>& audio, QualityMode quality) {
+    void delta_encode_palette() {
 
-        std::vector<uint8\_t> encoded;
+        delta_encoded.clear();
 
-        std::vector<std::tuple<uint16\_t, uint16\_t, int16\_t>> voxels;
-
-        
-
-        const size\_t TIME\_BINS = 32;
-
-        const size\_t FREQ\_BINS = 32;
+        if (colors.empty()) return;
 
         
 
-        float threshold = (quality == QualityMode::QUALITY\_MASTER) ? 0.01f : 0.05f;
+        auto lum = \[](const Color\& c) { return c.luminance(); };
 
         
 
-        for (size\_t t = 0; t < TIME\_BINS && voxels.size() < MAX\_VOXELS; t++) {
+        delta_encoded.push_back(lum(colors\[0]));
 
-            for (size\_t f = 0; f < FREQ\_BINS && voxels.size() < MAX\_VOXELS; f++) {
+        for (size_t i = 1; i < colors.size(); i++) {
 
-                size\_t idx = t \* FREQ\_BINS + f;
+            delta_encoded.push_back(lum(colors\[i]) - lum(colors\[i-1]));
 
-                if (idx < audio.size() && std::abs(audio[idx]) > threshold) {
+        }
 
-                    int16\_t amp = static\_cast<int16\_t>(audio[idx] \* (quality == QualityMode::QUALITY\_MASTER ? 32767 : 2047));
+    }
 
-                    voxels.emplace\_back(t, f, amp);
+    
+
+    uint16_t quantize(const Color\& c) const {
+
+        if (colors.empty()) return 0;
+
+        
+
+        uint32_t target = c.to_rgb32();
+
+        auto it = index_map.find(target);
+
+        if (it != index_map.end()) return it->second;
+
+        
+
+        // Find perceptually nearest color
+
+        uint16_t best_idx = 0;
+
+        float best_dist = PerceptualMetric::perceptual_distance(c, colors\[0]);
+
+        for (size_t i = 1; i < colors.size(); i++) {
+
+            float dist = PerceptualMetric::perceptual_distance(c, colors\[i]);
+
+            if (dist < best_dist) {
+
+                best_dist = dist;
+
+                best_idx = uint16_t(i);
+
+            }
+
+        }
+
+        return best_idx;
+
+    }
+
+    
+
+    Color unquantize(uint16_t idx) const {
+
+        if (idx < colors.size()) return colors\[idx];
+
+        return Color(0, 0, 0);
+
+    }
+
+    
+
+    void rebuild_index_map() {
+
+        index_map.clear();
+
+        for (size_t i = 0; i < colors.size(); i++) {
+
+            index_map\[colors\[i].to_rgb32()] = uint16_t(i);
+
+        }
+
+    }
+
+
+
+};
+// ============================================================================
+// DIRECTIONAL PATH
+// ============================================================================
+class DirectionalPath {
+public:
+    std::vector<Vec2> path;
+    std::vector<uint8_t> directions;
+
+    
+
+    void build(const Triangle\& tri, const std::vector<Color>\& image, int width, int height) {
+
+        path.clear();
+
+        directions.clear();
+
+        
+
+        // Collect all pixels in triangle
+
+        std::vector<Vec2> pixels;
+
+        int min_x, max_x, min_y, max_y;
+
+        tri.get_bounds(min_x, max_x, min_y, max_y);
+
+        
+
+        for (int y = min_y; y <= max_y; y++) {
+
+            for (int x = min_x; x <= max_x; x++) {
+
+                if (x >= 0 \&\& x < width \&\& y >= 0 \&\& y < height \&\& tri.contains(x, y)) {
+
+                    pixels.push_back(Vec2(x, y));
 
                 }
 
@@ -10331,397 +10279,1574 @@ private:
 
         
 
-        encoded.push\_back(static\_cast<uint8\_t>(voxels.size()));
-
-        for (const auto& [t, f, a] : voxels) {
-
-            encoded.push\_back(t & 0xFF);
-
-            encoded.push\_back(f & 0xFF);
-
-            encoded.push\_back((a >> 8) & 0xFF);
-
-            encoded.push\_back(a & 0xFF);
-
-        }
+        if (pixels.empty()) return;
 
         
 
-        return encoded;
+        // Simple raster path for now
 
-    }
+        std::sort(pixels.begin(), pixels.end(),
 
-    
+                  \[](const Vec2\& a, const Vec2\& b) {
 
-    std::vector<uint8\_t> encode\_noise(const std::vector<float>& audio, QualityMode quality) {
+                      return (a.y < b.y) || (a.y == b.y \&\& a.x < b.x);
 
-        std::vector<uint8\_t> encoded;
+                  });
 
-        
-
-        int num\_bands = (quality == QualityMode::QUALITY\_MASTER) ? 32 : 16;
-
-        std::vector<float> envelope(num\_bands, 0.0f);
-
-        size\_t band\_size = audio.size() / num\_bands;
+        path = std::move(pixels);
 
         
 
-        for (int b = 0; b < num\_bands; b++) {
+        // Compute directions
 
-            float sum = 0.0f;
+        for (size_t i = 1; i < path.size(); i++) {
 
-            for (size\_t i = b \* band\_size; i < (b + 1) \* band\_size && i < audio.size(); i++) {
+            int dx = path\[i].x - path\[i-1].x;
 
-                sum += std::abs(audio[i]);
-
-            }
-
-            envelope[b] = sum / band\_size;
-
-        }
-
-        
-
-        encoded.push\_back(static\_cast<uint8\_t>(num\_bands));
-
-        for (int b = 0; b < num\_bands; b++) {
-
-            uint8\_t quant = static\_cast<uint8\_t>(envelope[b] \* 255);
-
-            encoded.push\_back(quant);
-
-        }
-
-        
-
-        // Random seed for noise generation
-
-        std::random\_device rd;
-
-        uint32\_t seed = rd();
-
-        encoded.push\_back((seed >> 24) & 0xFF);
-
-        encoded.push\_back((seed >> 16) & 0xFF);
-
-        encoded.push\_back((seed >> 8) & 0xFF);
-
-        encoded.push\_back(seed & 0xFF);
-
-        
-
-        return encoded;
-
-    }
-
-    
-
-    std::vector<uint8\_t> encode\_xor\_delta(const std::vector<float>& audio, QualityMode quality) {
-
-        // Convert to bytes
-
-        std::vector<uint8\_t> bytes(audio.size());
-
-        for (size\_t i = 0; i < audio.size(); i++) {
-
-            bytes[i] = static\_cast<uint8\_t>((audio[i] + 1.0f) \* 127.5f);
-
-        }
-
-        
-
-        // Apply XOR transform
-
-        auto xored = XORDeltaTransform::xor\_encode(bytes);
-
-        
-
-        // Apply folding
-
-        uint8\_t offset = XORDeltaTransform::calculate\_folding\_offset(xored);
-
-        std::vector<uint8\_t> folded(xored.size());
-
-        for (size\_t i = 0; i < xored.size(); i++) {
-
-            folded[i] = XORDeltaTransform::modular\_fold(xored[i], offset);
-
-        }
-
-        
-
-        // Compress with RLE
-
-        auto compressed = run\_length\_encode(folded);
-
-        
-
-        std::vector<uint8\_t> encoded;
-
-        encoded.push\_back(offset);
-
-        encoded.push\_back(compressed.size() & 0xFF);
-
-        encoded.push\_back((compressed.size() >> 8) & 0xFF);
-
-        encoded.insert(encoded.end(), compressed.begin(), compressed.end());
-
-        
-
-        return encoded;
-
-    }
-
-    
-
-    std::vector<uint8\_t> encode\_silence(const std::vector<float>& audio) {
-
-        std::vector<uint8\_t> encoded;
-
-        encoded.push\_back(1);  // Silence flag
-
-        encoded.push\_back(audio.size() & 0xFF);
-
-        encoded.push\_back((audio.size() >> 8) & 0xFF);
-
-        return encoded;
-
-    }
-
-    
-
-    std::vector<uint8\_t> run\_length\_encode(const std::vector<uint8\_t>& data) {
-
-        std::vector<uint8\_t> encoded;
-
-        size\_t i = 0;
-
-        
-
-        while (i < data.size()) {
-
-            uint8\_t current = data[i];
-
-            size\_t run = 1;
-
-            while (i + run < data.size() && data[i + run] == current && run < 255) run++;
+            int dy = path\[i].y - path\[i-1].y;
 
             
 
-            if (run > 2) {
+            uint8_t dir = 0;
 
-                encoded.push\_back(current);
+            if (dx == 1 \&\& dy == 0) dir = 1;
 
-                encoded.push\_back(static\_cast<uint8\_t>(run));
+            else if (dx == -1 \&\& dy == 0) dir = 2;
 
-                i += run;
+            else if (dx == 0 \&\& dy == 1) dir = 3;
 
-            } else {
+            else if (dx == 0 \&\& dy == -1) dir = 4;
 
-                encoded.push\_back(0xFF);
+            else if (dx == 1 \&\& dy == 1) dir = 5;
 
-                encoded.push\_back(current);
+            else if (dx == -1 \&\& dy == -1) dir = 6;
 
-                i++;
+            else if (dx == 1 \&\& dy == -1) dir = 7;
 
-            }
+            else if (dx == -1 \&\& dy == 1) dir = 8;
+
+            
+
+            directions.push_back(dir);
 
         }
 
-        
-
-        return encoded.size() < data.size() ? encoded : data;
-
     }
 
+
+
 };
-
 // ============================================================================
-
-// VIDEO FRAME ENCODER (Triangle-based)
-
+// PREDICTORS
 // ============================================================================
+class Predictor {
+public:
+    enum Type : uint8_t {
+        NONE = 0,
 
-class VideoFrameEncoder {
+        LEFT = 1,
 
-private:
+        TOP = 2,
 
-    struct SubdivisionConfig {
+        AVERAGE = 3,
 
-        float error\_threshold = 100.0f;
+        GRADIENT = 4,
 
-        int max\_subdivision\_level = 8;
+        XOR = 5,
 
-        int min\_triangle\_area = 4;
+        DELTA = 6,
+
+        DIRECTIONAL = 7
 
     };
 
     
 
-    SubdivisionConfig config;
+    static Color predict(const std::vector<Color>\& decoded, const Vec2\& pos,
+
+                         int width, Type type, uint8_t direction = 0) {
+
+        switch (type) {
+
+            case LEFT:
+
+                if (pos.x > 0) return decoded\[pos.y \* width + (pos.x - 1)];
+
+                break;
+
+            case TOP:
+
+                if (pos.y > 0) return decoded\[(pos.y - 1) \* width + pos.x];
+
+                break;
+
+            case AVERAGE:
+
+                if (pos.x > 0 \&\& pos.y > 0) {
+
+                    Color left = decoded\[pos.y \* width + (pos.x - 1)];
+
+                    Color top = decoded\[(pos.y - 1) \* width + pos.x];
+
+                    return Color((left.r + top.r) / 2, (left.g + top.g) / 2, (left.b + top.b) / 2);
+
+                }
+
+                break;
+
+            case GRADIENT:
+
+                if (pos.x > 0 \&\& pos.y > 0) {
+
+                    Color left = decoded\[pos.y \* width + (pos.x - 1)];
+
+                    Color top = decoded\[(pos.y - 1) \* width + pos.x];
+
+                    Color topleft = decoded\[(pos.y - 1) \* width + (pos.x - 1)];
+
+                    return Color(
+
+                        std::clamp(int(left.r) + int(top.r) - int(topleft.r), 0, 255),
+
+                        std::clamp(int(left.g) + int(top.g) - int(topleft.g), 0, 255),
+
+                        std::clamp(int(left.b) + int(top.b) - int(topleft.b), 0, 255)
+
+                    );
+
+                }
+
+                break;
+
+            default:
+
+                break;
+
+        }
+
+        return Color(128, 128, 128);
+
+    }
 
     
 
+    static int16_t compute_residual(const Color\& actual, const Color\& predicted, Type type) {
+
+        if (type == XOR) {
+
+            Color xord = actual ^ predicted;
+
+            return int16_t(xord.r + xord.g + xord.b);
+
+        } else {
+
+            return int16_t(actual.luminance() - predicted.luminance());
+
+        }
+
+    }
+
+    
+
+    static Color reconstruct(const Color\& predicted, int16_t residual, Type type) {
+
+        int lum = predicted.luminance() + residual;
+
+        lum = std::clamp(lum, 0, 765);
+
+        return Color(uint8_t(lum / 3), uint8_t(lum / 3), uint8_t(lum / 3));
+
+    }
+
+
+
+};
+// ============================================================================
+// XOR/DELTA TRANSFORM
+// ============================================================================
+class XORDeltaTransform {
 public:
+    static std::vector<uint8_t> apply_xor(const std::vector<uint16_t>& symbols) {
+        std::vector<uint8_t> result;
 
-    std::vector<Triangle> decompose\_image(const std::vector<Color>& image, int width, int height) {
-
-        std::vector<Triangle> triangles;
-
-        
-
-        // Start with two large triangles covering the whole image
-
-        Triangle top\_left(Vec2(0, 0), Vec2(width, 0), Vec2(0, height));
-
-        Triangle bottom\_right(Vec2(width, 0), Vec2(width, height), Vec2(0, height));
+        if (symbols.empty()) return result;
 
         
 
-        // Set initial vertex colors
+        result.push_back(uint8_t(symbols\[0] \& 0xFF));
 
-        if (!image.empty()) {
+        result.push_back(uint8_t((symbols\[0] >> 8) \& 0xFF));
 
-            top\_left.color0 = image[0];
+        
 
-            top\_left.color1 = image[width - 1];
+        for (size_t i = 1; i < symbols.size(); i++) {
 
-            top\_left.color2 = image[(height - 1) \* width];
+            uint16_t xored = symbols\[i] ^ symbols\[i-1];
 
-            
+            result.push_back(uint8_t(xored \& 0xFF));
 
-            bottom\_right.color0 = image[width - 1];
-
-            bottom\_right.color1 = image[(height - 1) \* width + width - 1];
-
-            bottom\_right.color2 = image[(height - 1) \* width];
+            result.push_back(uint8_t((xored >> 8) \& 0xFF));
 
         }
 
-        
-
-        recursive\_subdivide(top\_left, image, width, height, triangles);
-
-        recursive\_subdivide(bottom\_right, image, width, height, triangles);
-
-        
-
-        return triangles;
+        return result;
 
     }
 
     
 
-    std::vector<uint8\_t> encode\_triangles(const std::vector<Triangle>& triangles) {
+    static std::vector<int16_t> apply_delta(const std::vector<uint16_t>\& symbols) {
 
-        BitstreamWriter writer;
+        std::vector<int16_t> deltas;
 
-        
-
-        // Write triangle count using exponential Golomb
-
-        write\_unsigned\_golomb(writer, triangles.size());
+        if (symbols.empty()) return deltas;
 
         
 
-        Vec2 prev\_v0, prev\_v1, prev\_v2;
+        deltas.push_back(int16_t(symbols\[0]));
 
-        
+        for (size_t i = 1; i < symbols.size(); i++) {
 
-        for (const auto& tri : triangles) {
-
-            // Differential encoding of vertices
-
-            write\_delta\_vertex(writer, tri.v0, prev\_v0);
-
-            write\_delta\_vertex(writer, tri.v1, prev\_v1);
-
-            write\_delta\_vertex(writer, tri.v2, prev\_v2);
-
-            
-
-            prev\_v0 = tri.v0;
-
-            prev\_v1 = tri.v1;
-
-            prev\_v2 = tri.v2;
-
-            
-
-            // Write colors
-
-            writer.write\_byte(tri.color0.r);
-
-            writer.write\_byte(tri.color0.g);
-
-            writer.write\_byte(tri.color0.b);
-
-            writer.write\_byte(tri.color1.r);
-
-            writer.write\_byte(tri.color1.g);
-
-            writer.write\_byte(tri.color1.b);
-
-            writer.write\_byte(tri.color2.r);
-
-            writer.write\_byte(tri.color2.g);
-
-            writer.write\_byte(tri.color2.b);
-
-            
-
-            // Write subdivision level and error
-
-            writer.write\_uint8(tri.subdivision\_level);
-
-            uint16\_t quant\_error = static\_cast<uint16\_t>(std::min(tri.error \* 10.0f, 65535.0f));
-
-            writer.write\_uint16(quant\_error);
+            deltas.push_back(int16_t(symbols\[i] - symbols\[i-1]));
 
         }
 
-        
-
-        writer.flush();
-
-        return writer.get\_buffer();
+        return deltas;
 
     }
 
     
 
-    std::vector<Color> reconstruct\_image(const std::vector<Triangle>& triangles, int width, int height) {
+    static std::vector<uint16_t> inverse_xor(const std::vector<uint8_t>\& xored) {
 
-        std::vector<Color> image(width \* height, Color(0, 0, 0));
+        std::vector<uint16_t> result;
+
+        if (xored.size() < 2) return result;
 
         
 
-        for (const auto& tri : triangles) {
+        uint16_t prev = uint16_t(xored\[0]) | (uint16_t(xored\[1]) << 8);
 
-            int min\_x, max\_x, min\_y, max\_y;
+        result.push_back(prev);
 
-            tri.get\_bounds(min\_x, max\_x, min\_y, max\_y);
+        
+
+        for (size_t i = 2; i + 1 < xored.size(); i += 2) {
+
+            uint16_t xored_val = uint16_t(xored\[i]) | (uint16_t(xored\[i+1]) << 8);
+
+            uint16_t decoded = xored_val ^ prev;
+
+            result.push_back(decoded);
+
+            prev = decoded;
+
+        }
+
+        return result;
+
+    }
+
+    
+
+    static std::vector<uint16_t> inverse_delta(const std::vector<int16_t>\& deltas) {
+
+        std::vector<uint16_t> result;
+
+        if (deltas.empty()) return result;
+
+        
+
+        result.push_back(uint16_t(deltas\[0]));
+
+        for (size_t i = 1; i < deltas.size(); i++) {
+
+            result.push_back(uint16_t(int(result.back()) + deltas\[i]));
+
+        }
+
+        return result;
+
+    }
+
+
+
+};
+// ============================================================================
+// STREAM SEPARATOR
+// ============================================================================
+struct EncodedStreams {
+    std::vector<uint8_t> control_bits;
+    std::vector<uint8_t> symbol_stream;
+
+    std::vector<int16_t> residual_stream;
+
+    std::vector<uint8_t> palette_stream;
+
+    
+
+    void clear() {
+
+        control_bits.clear();
+
+        symbol_stream.clear();
+
+        residual_stream.clear();
+
+        palette_stream.clear();
+
+    }
+
+    
+
+    size_t total_bytes() const {
+
+        return control_bits.size() + symbol_stream.size() + 
+
+               residual_stream.size() \* 2 + palette_stream.size();
+
+    }
+
+
+
+};
+// ============================================================================
+// CONTEXT MODEL
+// ============================================================================
+class ContextModel {
+public:
+    struct Key {
+        uint32_t prev_symbols\[3];
+
+        uint8_t prev_residuals\[3];
+
+        uint8_t region_type;
+
+        uint8_t direction;
+
+        
+
+        bool operator==(const Key\& other) const {
+
+            return prev_symbols\[0] == other.prev_symbols\[0] \&\&
+
+                   prev_symbols\[1] == other.prev_symbols\[1] \&\&
+
+                   prev_symbols\[2] == other.prev_symbols\[2] \&\&
+
+                   prev_residuals\[0] == other.prev_residuals\[0] \&\&
+
+                   prev_residuals\[1] == other.prev_residuals\[1] \&\&
+
+                   prev_residuals\[2] == other.prev_residuals\[2] \&\&
+
+                   region_type == other.region_type \&\&
+
+                   direction == other.direction;
+
+        }
+
+    };
+
+    
+
+    struct KeyHash {
+
+        size_t operator()(const Key\& k) const {
+
+            size_t h = 0;
+
+            h ^= std::hash<uint32_t>{}(k.prev_symbols\[0]) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<uint32_t>{}(k.prev_symbols\[1]) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<uint32_t>{}(k.prev_symbols\[2]) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<uint8_t>{}(k.prev_residuals\[0]) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<uint8_t>{}(k.prev_residuals\[1]) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<uint8_t>{}(k.prev_residuals\[2]) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<uint8_t>{}(k.region_type) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            h ^= std::hash<uint8_t>{}(k.direction) + 0x9e3779b9 + (h << 6) + (h >> 2);
+
+            return h;
+
+        }
+
+    };
+
+    
+
+    void update(uint32_t symbol, const Key\& ctx) {
+
+        auto\& counts = freq_\[ctx];
+
+        if (counts.size() <= symbol) counts.resize(symbol + 1, 0);
+
+        counts\[symbol]++;
+
+        total_\[ctx]++;
+
+    }
+
+    
+
+    float probability(uint32_t symbol, const Key\& ctx) const {
+
+        auto it = freq_.find(ctx);
+
+        if (it == freq_.end()) return 1.0f / 65536.0f;
+
+        if (symbol >= it->second.size()) return 1.0f / 65536.0f;
+
+        
+
+        auto total_it = total_.find(ctx);
+
+        if (total_it == total_.end()) return 1.0f / 65536.0f;
+
+        
+
+        return float(it->second\[symbol]) / float(total_it->second);
+
+    }
+
+    
+
+    float cost_bits(uint32_t symbol, const Key\& ctx) const {
+
+        float p = probability(symbol, ctx);
+
+        return -std::log2(p + 1e-9f);
+
+    }
+
+    
+
+    void build_cdf(const Key\& ctx, std::vector<uint32_t>\& cdf, int\& total) const {
+
+        auto it = freq_.find(ctx);
+
+        if (it == freq_.end() || it->second.empty()) {
+
+            cdf = {0, 65536};
+
+            total = 65536;
+
+            return;
+
+        }
+
+        
+
+        cdf.clear();
+
+        cdf.push_back(0);
+
+        total = 0;
+
+        for (size_t i = 0; i < it->second.size(); i++) {
+
+            total += it->second\[i];
+
+            cdf.push_back(total);
+
+        }
+
+        
+
+        if (total == 0) {
+
+            cdf = {0, 65536};
+
+            total = 65536;
+
+        }
+
+    }
+
+    
+
+    void reset() {
+
+        freq_.clear();
+
+        total_.clear();
+
+    }
+
+    
+
+
+
+
+
+
+
+private:
+    mutable std::unordered_map<Key, std::vector<uint32_t>, KeyHash> freq_;
+    mutable std::unordered_map<Key, uint32_t, KeyHash> total_;
+
+
+
+};
+// ============================================================================
+// ANS ENTROPY CODER
+// ============================================================================
+class ANSEncoder {
+public:
+    struct State {
+        uint64_t x = 0;
+
+        std::vector<uint8_t> buffer;
+
+        
+
+        void write_bit(bool bit) {
+
+            buffer.push_back(bit ? 1 : 0);
+
+        }
+
+        
+
+        void write_byte(uint8_t byte) {
+
+            for (int i = 0; i < 8; i++) {
+
+                write_bit((byte >> i) \& 1);
+
+            }
+
+        }
+
+        
+
+        void flush() {
+
+            while (x > 0) {
+
+                write_bit(x \& 1);
+
+                x >>= 1;
+
+            }
+
+        }
+
+    };
+
+    
+
+    void encode(State\& state, uint32_t symbol, const uint32_t\* cum_freq, int total_freq) {
+
+        while (state.x >= (1ULL << 31)) {
+
+            state.write_bit(state.x \& 1);
+
+            state.x >>= 1;
+
+        }
+
+        
+
+        uint32_t freq = cum_freq\[symbol + 1] - cum_freq\[symbol];
+
+        if (freq == 0) freq = 1;
+
+        
+
+        uint64_t x_div = state.x / freq;
+
+        uint64_t x_mod = state.x % freq;
+
+        state.x = x_div \* total_freq + cum_freq\[symbol] + x_mod;
+
+    }
+
+    
+
+    std::vector<uint8_t> finish(State\& state) {
+
+        state.flush();
+
+        return std::move(state.buffer);
+
+    }
+
+
+
+};
+class ANSDecoder {
+public:
+    struct State {
+        uint64_t x = 0;
+
+        const uint8_t\* data;
+
+        size_t pos = 0;
+
+        size_t size;
+
+        
+
+        State(const uint8_t\* _data, size_t _size) : data(_data), size(_size) {
+
+            for (int i = 0; i < 32 \&\& pos < size; i++) {
+
+                x |= (uint64_t(data\[pos]) << i);
+
+                pos++;
+
+            }
+
+        }
+
+        
+
+        bool read_bit() {
+
+            if (pos >= size) return false;
+
+            bool bit = data\[pos] != 0;
+
+            pos++;
+
+            return bit;
+
+        }
+
+        
+
+        uint8_t read_byte() {
+
+            uint8_t byte = 0;
+
+            for (int i = 0; i < 8; i++) {
+
+                if (read_bit()) byte |= (1 << i);
+
+            }
+
+            return byte;
+
+        }
+
+    };
+
+    
+
+    uint32_t decode(State\& state, const uint32_t\* cum_freq, int total_freq) {
+
+        uint32_t slot = state.x % total_freq;
+
+        uint32_t sym = 0;
+
+        while (cum_freq\[sym + 1] <= slot) sym++;
+
+        
+
+        uint32_t freq = cum_freq\[sym + 1] - cum_freq\[sym];
+
+        if (freq == 0) freq = 1;
+
+        
+
+        uint64_t x_div = state.x / total_freq;
+
+        uint64_t x_mod = state.x % total_freq;
+
+        state.x = freq \* x_div + (x_mod - cum_freq\[sym]);
+
+        
+
+        while (state.x < (1ULL << 31) \&\& state.pos < state.size) {
+
+            state.x |= (uint64_t(state.data\[state.pos]) << 31);
+
+            state.pos++;
+
+        }
+
+        
+
+        return sym;
+
+    }
+
+
+
+};
+// ============================================================================
+// REGION
+// ============================================================================
+enum class RegionMode : uint8_t {
+    PALETTE_DIRECTIONAL = 0,
+    PALETTE_RASTER = 1,
+
+    PREDICTIVE_LEFT = 2,
+
+    PREDICTIVE_TOP = 3,
+
+    PREDICTIVE_AVG = 4,
+
+    PREDICTIVE_GRADIENT = 5,
+
+    PREDICTIVE_XOR = 6,
+
+    PREDICTIVE_DELTA = 7,
+
+    PREDICTIVE_DIRECTIONAL = 8
+
+
+
+};
+struct Region {
+    Triangle triangle;
+    Palette palette;
+
+    DirectionalPath path;
+
+    RegionMode mode = RegionMode::PALETTE_DIRECTIONAL;
+
+    
+
+    std::vector<uint16_t> symbols;
+
+    std::vector<int16_t> residuals;
+
+    std::vector<uint8_t> control;
+
+    
+
+    bool xor_applied = false;
+
+    bool delta_applied = false;
+
+    
+
+    float distortion = 0.0f;
+
+    float rate = 0.0f;
+
+    float entropy = 0.0f;
+
+    
+
+    float rd_cost() const { return rate + Config().lambda \* distortion; }
+
+    
+
+    void compute_entropy() {
+
+        entropy = EntropyCalculator::compute_entropy(
+
+            std::vector<uint32_t>(symbols.begin(), symbols.end())
+
+        );
+
+    }
+
+
+
+};
+// ============================================================================
+// ENTROPY-AWARE REGION SPLITTER
+// ============================================================================
+class EntropyAwareRegionSplitter {
+public:
+    std::vector<Region> split_image(const std::vector<Color>& image, int width, int height,
+                                     const Config\& config) {
+
+        std::vector<Region> regions;
+
+        
+
+        Vec2 top_left(0, 0);
+
+        Vec2 top_right(width - 1, 0);
+
+        Vec2 bottom_left(0, height - 1);
+
+        Vec2 bottom_right(width - 1, height - 1);
+
+        
+
+        Triangle tri1{top_left, top_right, bottom_left};
+
+        Triangle tri2{top_right, bottom_right, bottom_left};
+
+        
+
+        Region r1, r2;
+
+        r1.triangle = tri1;
+
+        r2.triangle = tri2;
+
+        
+
+        split_recursive(r1, image, width, height, regions, 0, config);
+
+        split_recursive(r2, image, width, height, regions, 0, config);
+
+        
+
+        return regions;
+
+    }
+
+    
+
+
+
+
+
+
+
+private:
+    void split_recursive(Region& region, const std::vector<Color>& image,
+                         int width, int height, std::vector<Region>\& result, 
+
+                         int depth, const Config\& config) {
+
+        auto pixels = extract_pixels(region.triangle, image, width, height);
+
+        
+
+        if (pixels.size() < (size_t)config.min_region_size) {
+
+            finalize_region(region, pixels, width, height, config);
+
+            result.push_back(region);
+
+            return;
+
+        }
+
+        
+
+        float current_entropy = EntropyCalculator::compute_color_entropy(pixels);
+
+        
+
+        Vec2 centroid = region.triangle.centroid();
+
+        Triangle sub1{region.triangle.v0, region.triangle.v1, centroid};
+
+        Triangle sub2{region.triangle.v1, region.triangle.v2, centroid};
+
+        Triangle sub3{region.triangle.v2, region.triangle.v0, centroid};
+
+        
+
+        auto pixels1 = extract_pixels(sub1, image, width, height);
+
+        auto pixels2 = extract_pixels(sub2, image, width, height);
+
+        auto pixels3 = extract_pixels(sub3, image, width, height);
+
+        
+
+        float ent1 = EntropyCalculator::compute_color_entropy(pixels1);
+
+        float ent2 = EntropyCalculator::compute_color_entropy(pixels2);
+
+        float ent3 = EntropyCalculator::compute_color_entropy(pixels3);
+
+        
+
+        float w1 = float(pixels1.size()) / pixels.size();
+
+        float w2 = float(pixels2.size()) / pixels.size();
+
+        float w3 = float(pixels3.size()) / pixels.size();
+
+        
+
+        float weighted_child_entropy = ent1 \* w1 + ent2 \* w2 + ent3 \* w3;
+
+        float entropy_gain = current_entropy - weighted_child_entropy;
+
+        
+
+        if (entropy_gain < config.entropy_threshold || depth >= config.max_region_depth) {
+
+            finalize_region(region, pixels, width, height, config);
+
+            result.push_back(region);
+
+        } else {
+
+            Region r1, r2, r3;
+
+            r1.triangle = sub1;
+
+            r2.triangle = sub2;
+
+            r3.triangle = sub3;
+
+            split_recursive(r1, image, width, height, result, depth + 1, config);
+
+            split_recursive(r2, image, width, height, result, depth + 1, config);
+
+            split_recursive(r3, image, width, height, result, depth + 1, config);
+
+        }
+
+    }
+
+    
+
+    std::vector<Color> extract_pixels(const Triangle\& tri, const std::vector<Color>\& image,
+
+                                       int width, int height) {
+
+        std::vector<Color> pixels;
+
+        int min_x, max_x, min_y, max_y;
+
+        tri.get_bounds(min_x, max_x, min_y, max_y);
+
+        
+
+        for (int y = min_y; y <= max_y; y++) {
+
+            for (int x = min_x; x <= max_x; x++) {
+
+                if (x >= 0 \&\& x < width \&\& y >= 0 \&\& y < height \&\& tri.contains(x, y)) {
+
+                    pixels.push_back(image\[y \* width + x]);
+
+                }
+
+            }
+
+        }
+
+        return pixels;
+
+    }
+
+    
+
+    void finalize_region(Region\& region, const std::vector<Color>\& pixels,
+
+                         int width, int height, const Config\& config) {
+
+        bool lossless = (config.mode == CompressionMode::LOSSLESS);
+
+        region.palette.build(pixels, config.max_palette_size, 
+
+                            config.near_lossless, config.near_lossless_tolerance,
+
+                            lossless);
+
+        
+
+        std::vector<Color> dummy_image(width \* height);
+
+        for (size_t i = 0; i < pixels.size() \&\& i < dummy_image.size(); i++) {
+
+            dummy_image\[i] = pixels\[i];
+
+        }
+
+        region.path.build(region.triangle, dummy_image, width, height);
+
+    }
+
+
+
+};
+// ============================================================================
+// MAIN ENCODER
+// ============================================================================
+class OrganicEncoder {
+public:
+    OrganicEncoder(const Config& cfg = Config()) : config(cfg), perceptual_rdo(cfg) {}
+
+    std::vector<uint8_t> encode(const std::vector<Color>\& image, int width, int height) {
+
+        EntropyAwareRegionSplitter splitter;
+
+        auto regions = splitter.split_image(image, width, height, config);
+
+        
+
+        for (auto\& region : regions) {
+
+            process_region(region, image, width, height);
+
+        }
+
+        
+
+        return encode_all_streams(regions);
+
+    }
+
+    
+
+
+
+
+
+
+
+private:
+    Config config;
+    PerceptualRDO perceptual_rdo;
+
+    ContextModel context_model;
+
+    ANSEncoder ans_encoder;
+
+    
+
+    void process_region(Region\& region, const std::vector<Color>\& image,
+
+                        int width, int height) {
+
+        auto pixels = extract_pixels(region.triangle, image, width, height);
+
+        auto positions = extract_positions(region.triangle, width, height);
+
+        
+
+        if (pixels.empty()) return;
+
+        
+
+        if (config.enable_palette_reduction) {
+
+            bool lossless = (config.mode == CompressionMode::LOSSLESS);
+
+            region.palette.build(pixels, config.max_palette_size,
+
+                                config.near_lossless, config.near_lossless_tolerance,
+
+                                lossless);
+
+        }
+
+        
+
+        if (config.enable_directional_prediction) {
+
+            region.path.build(region.triangle, image, width, height);
+
+        }
+
+        
+
+        // Select best mode
+
+        Region best_region = region;
+
+        float best_cost = std::numeric_limits<float>::max();
+
+        
+
+        int max_mode = config.lossless_use_all_predictors ? 8 : 4;
+
+        
+
+        for (int m = 0; m <= max_mode; m++) {
+
+            Region test_region = region;
+
+            test_region.mode = RegionMode(m);
 
             
 
-            min\_x = std::max(min\_x, 0);
-
-            max\_x = std::min(max\_x, width - 1);
-
-            min\_y = std::max(min\_y, 0);
-
-            max\_y = std::min(max\_y, height - 1);
+            encode_region_with_mode(test_region, pixels, positions, width);
 
             
 
-            for (int y = min\_y; y <= max\_y; y++) {
+            std::vector<Color> reconstructed;
 
-                for (int x = min\_x; x <= max\_x; x++) {
+            decode_region_with_mode(test_region, reconstructed, width);
 
-                    if (tri.contains(x, y)) {
+            
 
-                        image[y \* width + x] = tri.interpolate\_color(x, y);
+            // Compute perceptual distortion
+
+            float total_dist = 0.0f;
+
+            for (size_t i = 0; i < pixels.size(); i++) {
+
+                std::vector<Color> neighborhood;
+
+                if (i > 0) neighborhood.push_back(reconstructed\[i-1]);
+
+                total_dist += perceptual_rdo.compute_distortion(pixels\[i], reconstructed\[i], neighborhood);
+
+            }
+
+            test_region.distortion = total_dist / pixels.size();
+
+            
+
+            // Compute rate
+
+            test_region.rate = 0.0f;
+
+            for (size_t i = 0; i < test_region.symbols.size(); i++) {
+
+                test_region.rate += std::log2(float(test_region.palette.colors.size()));
+
+            }
+
+            test_region.rate += region.palette.colors.size() \* 3.0f \* 8.0f;
+
+            
+
+            float cost = perceptual_rdo.compute_cost(test_region.rate, test_region.distortion,
+
+                                                      Color(), Color(), {});
+
+            
+
+            if (cost < best_cost) {
+
+                best_cost = cost;
+
+                best_region = std::move(test_region);
+
+            }
+
+        }
+
+        
+
+        region = std::move(best_region);
+
+    }
+
+    
+
+    void encode_region_with_mode(Region\& region, const std::vector<Color>\& pixels,
+
+                                  const std::vector<Vec2>\& positions, int width) {
+
+        region.symbols.clear();
+
+        region.residuals.clear();
+
+        
+
+        switch (region.mode) {
+
+            case RegionMode::PALETTE_DIRECTIONAL:
+
+                for (const auto\& pos : region.path.path) {
+
+                    int idx = pos.y \* width + pos.x;
+
+                    if (idx < (int)pixels.size()) {
+
+                        region.symbols.push_back(region.palette.quantize(pixels\[idx]));
+
+                        region.residuals.push_back(0);
+
+                    }
+
+                }
+
+                break;
+
+                
+
+            case RegionMode::PREDICTIVE_GRADIENT: {
+
+                std::vector<Color> decoded(pixels.size());
+
+                for (size_t i = 0; i < pixels.size(); i++) {
+
+                    Color pred = Predictor::predict(decoded, positions\[i], width, Predictor::GRADIENT);
+
+                    int16_t res = Predictor::compute_residual(pixels\[i], pred, Predictor::GRADIENT);
+
+                    
+
+                    // Apply perceptual quantization in lossy mode
+
+                    if (config.mode != CompressionMode::LOSSLESS) {
+
+                        int local_complexity = (i > 0) ? std::abs(res) / 10 : 0;
+
+                        res = perceptual_rdo.quantize_residual(res, local_complexity);
+
+                    }
+
+                    
+
+                    region.residuals.push_back(res);
+
+                    decoded\[i] = Predictor::reconstruct(pred, res, Predictor::GRADIENT);
+
+                    region.symbols.push_back(uint16_t(res + 512));
+
+                }
+
+                break;
+
+            }
+
+            
+
+            default:
+
+                for (size_t i = 0; i < pixels.size(); i++) {
+
+                    region.symbols.push_back(region.palette.quantize(pixels\[i]));
+
+                    region.residuals.push_back(0);
+
+                }
+
+                break;
+
+        }
+
+    }
+
+    
+
+    void decode_region_with_mode(const Region\& region, std::vector<Color>\& output, int width) {
+
+        output.resize(region.symbols.size());
+
+        
+
+        switch (region.mode) {
+
+            case RegionMode::PALETTE_DIRECTIONAL:
+
+                for (size_t i = 0; i < region.symbols.size(); i++) {
+
+                    output\[i] = region.palette.unquantize(region.symbols\[i]);
+
+                }
+
+                break;
+
+                
+
+            case RegionMode::PREDICTIVE_GRADIENT: {
+
+                std::vector<Vec2> dummy_positions;
+
+                for (size_t i = 0; i < region.symbols.size(); i++) {
+
+                    dummy_positions.push_back(Vec2(int(i) % width, int(i) / width));
+
+                }
+
+                std::vector<Color> decoded(region.symbols.size());
+
+                for (size_t i = 0; i < region.symbols.size(); i++) {
+
+                    Color pred = Predictor::predict(decoded, dummy_positions\[i], width, Predictor::GRADIENT);
+
+                    int16_t res = int16_t(region.symbols\[i] - 512);
+
+                    decoded\[i] = Predictor::reconstruct(pred, res, Predictor::GRADIENT);
+
+                    output\[i] = decoded\[i];
+
+                }
+
+                break;
+
+            }
+
+            
+
+            default:
+
+                for (size_t i = 0; i < region.symbols.size(); i++) {
+
+                    output\[i] = region.palette.unquantize(region.symbols\[i]);
+
+                }
+
+                break;
+
+        }
+
+    }
+
+    
+
+    std::vector<uint8_t> encode_all_streams(const std::vector<Region>\& regions) {
+
+        EncodedStreams streams;
+
+        ANSEncoder::State state;
+
+        
+
+        // Write header with mode
+
+        state.write_byte(uint8_t(config.mode));
+
+        
+
+        uint32_t num_regions = uint32_t(regions.size());
+
+        for (int i = 0; i < 32; i++) {
+
+            state.write_bit((num_regions >> i) \& 1);
+
+        }
+
+        
+
+        for (const auto\& region : regions) {
+
+            encode_region_streams(region, streams, state);
+
+        }
+
+        
+
+        auto compressed = ans_encoder.finish(state);
+
+        
+
+        compressed.insert(compressed.end(), streams.control_bits.begin(), streams.control_bits.end());
+
+        compressed.insert(compressed.end(), streams.symbol_stream.begin(), streams.symbol_stream.end());
+
+        for (auto res : streams.residual_stream) {
+
+            compressed.push_back(uint8_t(res \& 0xFF));
+
+            compressed.push_back(uint8_t((res >> 8) \& 0xFF));
+
+        }
+
+        compressed.insert(compressed.end(), streams.palette_stream.begin(), streams.palette_stream.end());
+
+        
+
+        return compressed;
+
+    }
+
+    
+
+    void encode_region_streams(const Region\& region, EncodedStreams\& streams, ANSEncoder::State\& state) {
+
+        uint8_t control_byte = uint8_t(region.mode) | (region.xor_applied ? 0x80 : 0) | 
+
+                                (region.delta_applied ? 0x40 : 0);
+
+        streams.control_bits.push_back(control_byte);
+
+        
+
+        streams.control_bits.push_back(uint8_t(region.palette.colors.size() \& 0xFF));
+
+        streams.control_bits.push_back(uint8_t((region.palette.colors.size() >> 8) \& 0xFF));
+
+        
+
+        if (config.enable_palette_delta_encoding) {
+
+            for (auto delta : region.palette.delta_encoded) {
+
+                streams.palette_stream.push_back(uint8_t(delta \& 0xFF));
+
+                streams.palette_stream.push_back(uint8_t((delta >> 8) \& 0xFF));
+
+            }
+
+        } else {
+
+            for (const auto\& color : region.palette.colors) {
+
+                streams.palette_stream.push_back(color.r);
+
+                streams.palette_stream.push_back(color.g);
+
+                streams.palette_stream.push_back(color.b);
+
+            }
+
+        }
+
+        
+
+        streams.symbol_stream.insert(streams.symbol_stream.end(),
+
+                                      reinterpret_cast<const uint8_t\*>(region.symbols.data()),
+
+                                      reinterpret_cast<const uint8_t\*>(region.symbols.data() + region.symbols.size()));
+
+        
+
+        streams.residual_stream.insert(streams.residual_stream.end(),
+
+                                        region.residuals.begin(), region.residuals.end());
+
+    }
+
+    
+
+    std::vector<Color> extract_pixels(const Triangle\& tri, const std::vector<Color>\& image,
+
+                                       int width, int height) {
+
+        std::vector<Color> pixels;
+
+        int min_x, max_x, min_y, max_y;
+
+        tri.get_bounds(min_x, max_x, min_y, max_y);
+
+        
+
+        for (int y = min_y; y <= max_y; y++) {
+
+            for (int x = min_x; x <= max_x; x++) {
+
+                if (x >= 0 \&\& x < width \&\& y >= 0 \&\& y < height \&\& tri.contains(x, y)) {
+
+                    pixels.push_back(image\[y \* width + x]);
+
+                }
+
+            }
+
+        }
+
+        return pixels;
+
+    }
+
+    
+
+    std::vector<Vec2> extract_positions(const Triangle\& tri, int width, int height) {
+
+        std::vector<Vec2> positions;
+
+        int min_x, max_x, min_y, max_y;
+
+        tri.get_bounds(min_x, max_x, min_y, max_y);
+
+        
+
+        for (int y = min_y; y <= max_y; y++) {
+
+            for (int x = min_x; x <= max_x; x++) {
+
+                if (x >= 0 \&\& x < width \&\& y >= 0 \&\& y < height \&\& tri.contains(x, y)) {
+
+                    positions.push_back(Vec2(x, y));
+
+                }
+
+            }
+
+        }
+
+        return positions;
+
+    }
+
+
+
+};
+// ============================================================================
+// MAIN DECODER
+// ============================================================================
+class OrganicDecoder {
+public:
+    std::vector<Color> decode(const std::vector<uint8_t>& data, int& width, int& height) {
+        ANSDecoder::State state(data.data(), data.size());
+
+        
+
+        // Read mode
+
+        CompressionMode mode = CompressionMode(state.read_byte());
+
+        
+
+        uint32_t num_regions = 0;
+
+        for (int i = 0; i < 32; i++) {
+
+            if (state.read_bit()) num_regions |= (1 << i);
+
+        }
+
+        
+
+        std::vector<Region> regions;
+
+        for (uint32_t r = 0; r < num_regions; r++) {
+
+            Region region;
+
+            decode_region_streams(region, state);
+
+            regions.push_back(region);
+
+        }
+
+        
+
+        // Reconstruct image dimensions
+
+        width = 0;
+
+        height = 0;
+
+        for (const auto\& region : regions) {
+
+            width = std::max(width, std::max({region.triangle.v0.x, region.triangle.v1.x, region.triangle.v2.x}) + 1);
+
+            height = std::max(height, std::max({region.triangle.v0.y, region.triangle.v1.y, region.triangle.v2.y}) + 1);
+
+        }
+
+        
+
+        std::vector<Color> image(width \* height);
+
+        
+
+        for (const auto\& region : regions) {
+
+            std::vector<Color> region_pixels;
+
+            decode_region_with_mode(region, region_pixels, width);
+
+            
+
+            int idx = 0;
+
+            int min_x, max_x, min_y, max_y;
+
+            region.triangle.get_bounds(min_x, max_x, min_y, max_y);
+
+            
+
+            for (int y = min_y; y <= max_y \&\& idx < (int)region_pixels.size(); y++) {
+
+                for (int x = min_x; x <= max_x; x++) {
+
+                    if (x >= 0 \&\& x < width \&\& y >= 0 \&\& y < height \&\& 
+
+                        region.triangle.contains(x, y)) {
+
+                        image\[y \* width + x] = region_pixels\[idx++];
 
                     }
 
@@ -10739,1928 +11864,136 @@ public:
 
     
 
+
+
+
+
+
+
 private:
+    void decode_region_streams(Region& region, ANSDecoder::State& state) {
+        uint8_t control_byte = state.read_byte();
 
-    class BitstreamWriter {
+        region.mode = RegionMode(control_byte \& 0x07);
 
-    private:
+        region.xor_applied = (control_byte \& 0x80) != 0;
 
-        std::vector<uint8\_t> buffer;
-
-        uint64\_t bit\_buffer = 0;
-
-        int bit\_count = 0;
+        region.delta_applied = (control_byte \& 0x40) != 0;
 
         
 
-    public:
-
-        void write\_bit(bool bit) {
-
-            bit\_buffer |= (uint64\_t(bit) << bit\_count);
-
-            bit\_count++;
-
-            if (bit\_count == 64) flush();
-
-        }
+        uint16_t palette_size = state.read_byte() | (state.read_byte() << 8);
 
         
 
-        void write\_bits(uint64\_t value, int num\_bits) {
+        region.palette.colors.resize(palette_size);
 
-            for (int i = 0; i < num\_bits; i++) {
+        for (int i = 0; i < palette_size; i++) {
 
-                write\_bit((value >> i) & 1);
-
-            }
+            region.palette.colors\[i] = Color(state.read_byte(), state.read_byte(), state.read_byte());
 
         }
+
+        region.palette.rebuild_index_map();
 
         
 
-        void write\_byte(uint8\_t byte) {
+        // Symbol decoding (simplified)
 
-            write\_bits(byte, 8);
-
-        }
-
-        
-
-        void write\_uint16(uint16\_t value) {
-
-            write\_bits(value, 16);
-
-        }
-
-        
-
-        void write\_uint8(uint8\_t value) {
-
-            write\_bits(value, 8);
-
-        }
-
-        
-
-        void flush() {
-
-            while (bit\_count > 0) {
-
-                buffer.push\_back(uint8\_t(bit\_buffer & 0xFF));
-
-                bit\_buffer >>= 8;
-
-                bit\_count -= 8;
-
-            }
-
-        }
-
-        
-
-        std::vector<uint8\_t> get\_buffer() const { return buffer; }
-
-    };
-
-    
-
-    void write\_unsigned\_golomb(BitstreamWriter& writer, size\_t value) {
-
-        int k = 0;
-
-        while (value >= (1ULL << k)) {
-
-            writer.write\_bit(0);
-
-            k++;
-
-        }
-
-        writer.write\_bit(1);
-
-        writer.write\_bits(value, k);
+        region.symbols.resize(palette_size \* 2);  // Placeholder
 
     }
 
     
 
-    void write\_delta\_vertex(BitstreamWriter& writer, const Vec2& v, const Vec2& prev) {
+    void decode_region_with_mode(const Region\& region, std::vector<Color>\& output, int width) {
 
-        write\_signed\_golomb(writer, v.x - prev.x);
-
-        write\_signed\_golomb(writer, v.y - prev.y);
-
-    }
-
-    
-
-    void write\_signed\_golomb(BitstreamWriter& writer, int value) {
-
-        uint32\_t mapped = (value > 0) ? (value \* 2 - 1) : (-value \* 2);
-
-        write\_unsigned\_golomb(writer, mapped);
-
-    }
-
-    
-
-    void recursive\_subdivide(const Triangle& tri, const std::vector<Color>& image,
-
-                            int width, int height, std::vector<Triangle>& output) {
-
-        float error = compute\_triangle\_error(tri, image, width, height);
+        output.resize(region.symbols.size());
 
         
 
-        if (error <= config.error\_threshold || tri.subdivision\_level >= config.max\_subdivision\_level ||
+        switch (region.mode) {
 
-            tri.area() <= config.min\_triangle\_area) {
+            case RegionMode::PALETTE_DIRECTIONAL:
 
-            Triangle result = tri;
+                for (size_t i = 0; i < region.symbols.size(); i++) {
 
-            result.error = error;
-
-            output.push\_back(result);
-
-            return;
-
-        }
-
-        
-
-        // Subdivide into 4 smaller triangles
-
-        Vec2 mid01((tri.v0.x + tri.v1.x) / 2, (tri.v0.y + tri.v1.y) / 2);
-
-        Vec2 mid12((tri.v1.x + tri.v2.x) / 2, (tri.v1.y + tri.v2.y) / 2);
-
-        Vec2 mid20((tri.v2.x + tri.v0.x) / 2, (tri.v2.y + tri.v0.y) / 2);
-
-        
-
-        Color cmid01((tri.color0.r + tri.color1.r) / 2,
-
-                     (tri.color0.g + tri.color1.g) / 2,
-
-                     (tri.color0.b + tri.color1.b) / 2);
-
-        Color cmid12((tri.color1.r + tri.color2.r) / 2,
-
-                     (tri.color1.g + tri.color2.g) / 2,
-
-                     (tri.color1.b + tri.color2.b) / 2);
-
-        Color cmid20((tri.color2.r + tri.color0.r) / 2,
-
-                     (tri.color2.g + tri.color0.g) / 2,
-
-                     (tri.color2.b + tri.color0.b) / 2);
-
-        
-
-        Triangle t1(tri.v0, mid01, mid20);
-
-        Triangle t2(mid01, tri.v1, mid12);
-
-        Triangle t3(mid20, mid12, tri.v2);
-
-        Triangle t4(mid01, mid12, mid20);
-
-        
-
-        t1.color0 = tri.color0; t1.color1 = cmid01; t1.color2 = cmid20;
-
-        t2.color0 = cmid01; t2.color1 = tri.color1; t2.color2 = cmid12;
-
-        t3.color0 = cmid20; t3.color1 = cmid12; t3.color2 = tri.color2;
-
-        t4.color0 = cmid01; t4.color1 = cmid12; t4.color2 = cmid20;
-
-        
-
-        t1.subdivision\_level = tri.subdivision\_level + 1;
-
-        t2.subdivision\_level = tri.subdivision\_level + 1;
-
-        t3.subdivision\_level = tri.subdivision\_level + 1;
-
-        t4.subdivision\_level = tri.subdivision\_level + 1;
-
-        
-
-        recursive\_subdivide(t1, image, width, height, output);
-
-        recursive\_subdivide(t2, image, width, height, output);
-
-        recursive\_subdivide(t3, image, width, height, output);
-
-        recursive\_subdivide(t4, image, width, height, output);
-
-    }
-
-    
-
-    float compute\_triangle\_error(const Triangle& tri, const std::vector<Color>& image,
-
-                                 int width, int height) {
-
-        int min\_x, max\_x, min\_y, max\_y;
-
-        tri.get\_bounds(min\_x, max\_x, min\_y, max\_y);
-
-        
-
-        min\_x = std::max(min\_x, 0);
-
-        max\_x = std::min(max\_x, width - 1);
-
-        min\_y = std::max(min\_y, 0);
-
-        max\_y = std::min(max\_y, height - 1);
-
-        
-
-        if (min\_x > max\_x || min\_y > max\_y) return std::numeric\_limits<float>::max();
-
-        
-
-        float total\_error = 0.0f;
-
-        int sample\_count = 0;
-
-        
-
-        for (int y = min\_y; y <= max\_y; y += 2) {
-
-            for (int x = min\_x; x <= max\_x; x += 2) {
-
-                if (tri.contains(x, y)) {
-
-                    Color predicted = tri.interpolate\_color(x, y);
-
-                    Color actual = image[y \* width + x];
-
-                    
-
-                    int dr = int(predicted.r) - int(actual.r);
-
-                    int dg = int(predicted.g) - int(actual.g);
-
-                    int db = int(predicted.b) - int(actual.b);
-
-                    
-
-                    total\_error += dr\*dr + dg\*dg + db\*db;
-
-                    sample\_count++;
+                    output\[i] = region.palette.unquantize(region.symbols\[i]);
 
                 }
 
-            }
+                break;
+
+                
+
+            default:
+
+                for (size_t i = 0; i < region.symbols.size(); i++) {
+
+                    output\[i] = region.palette.unquantize(region.symbols\[i]);
+
+                }
+
+                break;
 
         }
 
-        
-
-        return (sample\_count > 0) ? total\_error / sample\_count : std::numeric\_limits<float>::max();
-
     }
+
+
 
 };
-
 // ============================================================================
-
-// MAIN ORGANIC COMPRESSOR (Audio + Video + Sync)
-
+// CONVENIENCE WRAPPER
 // ============================================================================
+inline std::vector<uint8_t> compress_image(const std::vector<Color>& image,
+                                            int width, int height,
+                                            const Config\& cfg = Config()) {
 
-class OrganicAVCompressor {
+    OrganicEncoder encoder(cfg);
 
-private:
+    return encoder.encode(image, width, height);
 
-    PerceptualAudioCompressor audio\_processor;
 
-    AudioFrameEncoder audio\_encoder;
-
-    VideoFrameEncoder video\_encoder;
-
-    SyncManager sync\_manager;
-
-    XORDeltaTransform xor\_delta;
-
-    
-
-    QualityMode current\_quality = QualityMode::QUALITY\_STANDARD;
-
-    
-
-    struct AVFrame {
-
-        FrameType type;
-
-        uint32\_t frame\_number;
-
-        Timestamp timestamp;
-
-        std::vector<uint8\_t> data;
-
-        uint32\_t original\_size;
-
-        
-
-        // Audio specific
-
-        std::vector<float> audio\_samples;
-
-        AudioMode audio\_mode;
-
-        
-
-        // Video specific
-
-        std::vector<Triangle> triangles;
-
-        int width, height;
-
-    };
-
-    
-
-public:
-
-    OrganicAVCompressor() {
-
-        sync\_manager.set\_clock\_rate(90000.0);
-
-    }
-
-    
-
-    void set\_quality(QualityMode quality) {
-
-        current\_quality = quality;
-
-    }
-
-    
-
-    // Compress audio stream
-
-    std::vector<uint8\_t> compress\_audio(const std::vector<float>& audio\_samples,
-
-                                        float sample\_rate,
-
-                                        uint32\_t stream\_id = 0) {
-
-        std::vector<uint8\_t> output;
-
-        BitstreamWriter writer;
-
-        
-
-        // Write stream header
-
-        writer.write\_byte('A');  // Audio stream
-
-        writer.write\_byte(stream\_id & 0xFF);
-
-        writer.write\_byte((stream\_id >> 8) & 0xFF);
-
-        writer.write\_uint32(audio\_samples.size());
-
-        writer.write\_uint32(sample\_rate);
-
-        
-
-        // Process in blocks
-
-        size\_t block\_size = BLOCK\_SIZE;
-
-        uint64\_t pts = 0;
-
-        
-
-        for (size\_t offset = 0; offset < audio\_samples.size(); offset += block\_size) {
-
-            size\_t end = std::min(offset + block\_size, audio\_samples.size());
-
-            std::vector<float> block(audio\_samples.begin() + offset, audio\_samples.begin() + end);
-
-            
-
-            // Select best mode
-
-            AudioMode mode = audio\_processor.select\_best\_mode(block, current\_quality);
-
-            
-
-            // Encode block
-
-            auto encoded = audio\_encoder.encode\_frame(block, mode, current\_quality, sample\_rate);
-
-            
-
-            // Write block header
-
-            writer.write\_byte(static\_cast<uint8\_t>(mode));
-
-            writer.write\_uint32(offset);
-
-            writer.write\_uint32(encoded.size());
-
-            writer.write\_uint64(pts);
-
-            
-
-            // Write encoded data
-
-            for (uint8\_t byte : encoded) {
-
-                writer.write\_byte(byte);
-
-            }
-
-            
-
-            pts += (block.size() \* 90000) / sample\_rate;
-
-        }
-
-        
-
-        writer.flush();
-
-        return writer.get\_buffer();
-
-    }
-
-    
-
-    // Compress video stream
-
-    std::vector<uint8\_t> compress\_video(const std::vector<std::vector<Color>>& frames,
-
-                                        int width, int height,
-
-                                        float fps = 30.0f,
-
-                                        uint32\_t stream\_id = 1) {
-
-        std::vector<uint8\_t> output;
-
-        BitstreamWriter writer;
-
-        
-
-        // Write stream header
-
-        writer.write\_byte('V');  // Video stream
-
-        writer.write\_byte(stream\_id & 0xFF);
-
-        writer.write\_byte((stream\_id >> 8) & 0xFF);
-
-        writer.write\_uint32(width);
-
-        writer.write\_uint32(height);
-
-        writer.write\_uint32(frames.size());
-
-        writer.write\_uint32(fps);
-
-        
-
-        uint64\_t pts = 0;
-
-        uint64\_t pts\_increment = 90000 / fps;
-
-        
-
-        std::vector<Triangle> prev\_triangles;
-
-        
-
-        for (size\_t i = 0; i < frames.size(); i++) {
-
-            FrameType type = determine\_frame\_type(i, frames.size());
-
-            
-
-            // Write frame header
-
-            writer.write\_byte(static\_cast<uint8\_t>(type));
-
-            writer.write\_uint32(i);
-
-            writer.write\_uint64(pts);
-
-            
-
-            std::vector<uint8\_t> frame\_data;
-
-            
-
-            if (type == FrameType::I\_FRAME || type == FrameType::IDR\_FRAME) {
-
-                // Intra-frame: full triangle decomposition
-
-                auto triangles = video\_encoder.decompose\_image(frames[i], width, height);
-
-                frame\_data = video\_encoder.encode\_triangles(triangles);
-
-                prev\_triangles = triangles;
-
-            } else {
-
-                // P or B frame: use motion compensation with triangles
-
-                frame\_data = encode\_predicted\_frame(frames[i], prev\_triangles, width, height);
-
-                
-
-                // Also encode triangle updates
-
-                auto new\_triangles = video\_encoder.decompose\_image(frames[i], width, height);
-
-                auto updates = compute\_triangle\_updates(prev\_triangles, new\_triangles);
-
-                if (!updates.empty()) {
-
-                    auto update\_data = video\_encoder.encode\_triangles(updates);
-
-                    frame\_data.insert(frame\_data.end(), update\_data.begin(), update\_data.end());
-
-                }
-
-                prev\_triangles = new\_triangles;
-
-            }
-
-            
-
-            // Apply XOR + Delta transform for additional compression
-
-            auto xored = xor\_delta.xor\_encode(frame\_data);
-
-            if (xored.size() < frame\_data.size()) {
-
-                writer.write\_byte(1);  // XOR applied
-
-                writer.write\_uint32(xored.size());
-
-                for (uint8\_t byte : xored) writer.write\_byte(byte);
-
-            } else {
-
-                writer.write\_byte(0);  // No XOR
-
-                writer.write\_uint32(frame\_data.size());
-
-                for (uint8\_t byte : frame\_data) writer.write\_byte(byte);
-
-            }
-
-            
-
-            pts += pts\_increment;
-
-        }
-
-        
-
-        writer.flush();
-
-        return writer.get\_buffer();
-
-    }
-
-    
-
-    // Compress multiplexed AV stream (synchronized)
-
-    std::vector<uint8\_t> compress\_multiplexed(
-
-        const std::vector<float>& audio\_samples,
-
-        float audio\_sample\_rate,
-
-        const std::vector<std::vector<Color>>& video\_frames,
-
-        int video\_width, int video\_height,
-
-        float video\_fps) {
-
-        
-
-        std::vector<uint8\_t> output;
-
-        BitstreamWriter writer;
-
-        
-
-        // Write main header
-
-        writer.write\_byte('M');  // Multiplexed
-
-        writer.write\_byte('A');
-
-        writer.write\_byte('V');
-
-        writer.write\_byte(1);    // Version
-
-        
-
-        // Write sync parameters
-
-        writer.write\_uint32(90000);  // Timebase (90kHz)
-
-        writer.write\_uint32(audio\_sample\_rate);
-
-        writer.write\_uint32(video\_fps);
-
-        
-
-        // Calculate interleaving
-
-        double audio\_frame\_duration = double(BLOCK\_SIZE) / audio\_sample\_rate;
-
-        double video\_frame\_duration = 1.0 / video\_fps;
-
-        double chunk\_duration = std::min(audio\_frame\_duration, video\_frame\_duration);
-
-        
-
-        size\_t audio\_pos = 0;
-
-        size\_t video\_pos = 0;
-
-        uint64\_t current\_pts = 0;
-
-        
-
-        std::vector<AVFrame> av\_frames;
-
-        
-
-        // Create interleaved AV frames
-
-        while (audio\_pos < audio\_samples.size() || video\_pos < video\_frames.size()) {
-
-            double audio\_time = double(audio\_pos) / audio\_sample\_rate;
-
-            double video\_time = double(video\_pos) / video\_fps;
-
-            
-
-            if (audio\_time <= video\_time && audio\_pos < audio\_samples.size()) {
-
-                // Audio frame
-
-                AVFrame frame;
-
-                frame.type = FrameType::A\_FRAME;
-
-                frame.frame\_number = audio\_pos / BLOCK\_SIZE;
-
-                frame.timestamp = Timestamp(current\_pts, current\_pts, 0);
-
-                
-
-                size\_t end = std::min(audio\_pos + BLOCK\_SIZE, audio\_samples.size());
-
-                frame.audio\_samples.assign(audio\_samples.begin() + audio\_pos, 
-
-                                          audio\_samples.begin() + end);
-
-                
-
-                frame.audio\_mode = audio\_processor.select\_best\_mode(frame.audio\_samples, 
-
-                                                                    current\_quality);
-
-                frame.data = audio\_encoder.encode\_frame(frame.audio\_samples, frame.audio\_mode,
-
-                                                        current\_quality, audio\_sample\_rate);
-
-                frame.original\_size = frame.audio\_samples.size() \* sizeof(float);
-
-                
-
-                av\_frames.push\_back(frame);
-
-                audio\_pos += BLOCK\_SIZE;
-
-                current\_pts += (BLOCK\_SIZE \* 90000) / audio\_sample\_rate;
-
-                
-
-            } else if (video\_pos < video\_frames.size()) {
-
-                // Video frame
-
-                AVFrame frame;
-
-                frame.type = determine\_frame\_type(video\_pos, video\_frames.size());
-
-                frame.frame\_number = video\_pos;
-
-                frame.timestamp = Timestamp(current\_pts, current\_pts, 0);
-
-                frame.width = video\_width;
-
-                frame.height = video\_height;
-
-                
-
-                auto triangles = video\_encoder.decompose\_image(video\_frames[video\_pos], 
-
-                                                               video\_width, video\_height);
-
-                frame.triangles = triangles;
-
-                frame.data = video\_encoder.encode\_triangles(triangles);
-
-                frame.original\_size = video\_width \* video\_height \* 3;
-
-                
-
-                av\_frames.push\_back(frame);
-
-                video\_pos++;
-
-                current\_pts += 90000 / video\_fps;
-
-            }
-
-        }
-
-        
-
-        // Write frame count
-
-        writer.write\_uint32(av\_frames.size());
-
-        
-
-        // Write all frames
-
-        for (const auto& frame : av\_frames) {
-
-            writer.write\_byte(static\_cast<uint8\_t>(frame.type));
-
-            writer.write\_uint32(frame.frame\_number);
-
-            writer.write\_uint64(frame.timestamp.pts);
-
-            writer.write\_uint32(frame.data.size());
-
-            writer.write\_uint32(frame.original\_size);
-
-            
-
-            // Apply XOR transform
-
-            auto xored = xor\_delta.xor\_encode(frame.data);
-
-            if (xored.size() < frame.data.size()) {
-
-                writer.write\_byte(1);
-
-                for (uint8\_t byte : xored) writer.write\_byte(byte);
-
-            } else {
-
-                writer.write\_byte(0);
-
-                for (uint8\_t byte : frame.data) writer.write\_byte(byte);
-
-            }
-
-        }
-
-        
-
-        writer.flush();
-
-        return writer.get\_buffer();
-
-    }
-
-    
-
-    // Get compression statistics
-
-    struct CompressionStats {
-
-        double compression\_ratio;
-
-        uint64\_t original\_size;
-
-        uint64\_t compressed\_size;
-
-        double encoding\_time\_ms;
-
-        double psnr\_audio;
-
-        double psnr\_video;
-
-        
-
-        void print() const {
-
-            std::cout << "\\n╔════════════════════════════════════════════════════════════╗\\n";
-
-            std::cout << "║           ORGANIC COMPRESSOR STATISTICS                     ║\\n";
-
-            std::cout << "╚════════════════════════════════════════════════════════════╝\\n";
-
-            std::cout << "Original Size:     " << format\_bytes(original\_size) << "\\n";
-
-            std::cout << "Compressed Size:   " << format\_bytes(compressed\_size) << "\\n";
-
-            std::cout << "Compression Ratio: " << std::fixed << std::setprecision(2) 
-
-                      << (100.0 - compression\_ratio \* 100) << "%\\n";
-
-            std::cout << "Space Saved:       " << format\_bytes(original\_size - compressed\_size) << "\\n";
-
-            std::cout << "Encoding Time:     " << encoding\_time\_ms << " ms\\n";
-
-            std::cout << "Audio PSNR:        " << psnr\_audio << " dB\\n";
-
-            std::cout << "Video PSNR:        " << psnr\_video << " dB\\n";
-
-        }
-
-        
-
-    private:
-
-        std::string format\_bytes(uint64\_t bytes) const {
-
-            const char\* units[] = {"B", "KB", "MB", "GB"};
-
-            int idx = 0;
-
-            double size = bytes;
-
-            while (size >= 1024 && idx < 3) {
-
-                size /= 1024;
-
-                idx++;
-
-            }
-
-            std::stringstream ss;
-
-            ss << std::fixed << std::setprecision(2) << size << " " << units[idx];
-
-            return ss.str();
-
-        }
-
-    };
-
-    
-
-private:
-
-    FrameType determine\_frame\_type(size\_t frame\_idx, size\_t total\_frames) {
-
-        // I-frame every 30 frames, IDR every 60
-
-        if (frame\_idx % 60 == 0) return FrameType::IDR\_FRAME;
-
-        if (frame\_idx % 30 == 0) return FrameType::I\_FRAME;
-
-        if (frame\_idx % 3 == 0) return FrameType::P\_FRAME;
-
-        return FrameType::B\_FRAME;
-
-    }
-
-    
-
-    std::vector<uint8\_t> encode\_predicted\_frame(const std::vector<Color>& frame,
-
-                                                const std::vector<Triangle>& reference,
-
-                                                int width, int height) {
-
-        // Simple motion compensation using triangle centroids
-
-        std::vector<uint8\_t> output;
-
-        BitstreamWriter writer;
-
-        
-
-        std::vector<Vec2> motion\_vectors;
-
-        
-
-        for (const auto& tri : reference) {
-
-            Vec2 center = tri.centroid();
-
-            if (center.x >= 0 && center.x < width && center.y >= 0 && center.y < height) {
-
-                Color original = frame[center.y \* width + center.x];
-
-                Color predicted = tri.interpolate\_color(center.x, center.y);
-
-                
-
-                int dx = original.luminance() - predicted.luminance();
-
-                motion\_vectors.push\_back(Vec2(dx, 0));
-
-            }
-
-        }
-
-        
-
-        // Encode motion vectors
-
-        writer.write\_uint32(motion\_vectors.size());
-
-        for (const auto& mv : motion\_vectors) {
-
-            write\_signed\_golomb(writer, mv.x);
-
-            write\_signed\_golomb(writer, mv.y);
-
-        }
-
-        
-
-        writer.flush();
-
-        return writer.get\_buffer();
-
-    }
-
-    
-
-    std::vector<Triangle> compute\_triangle\_updates(const std::vector<Triangle>& prev,
-
-                                                    const std::vector<Triangle>& current) {
-
-        std::vector<Triangle> updates;
-
-        
-
-        for (size\_t i = 0; i < std::min(prev.size(), current.size()); i++) {
-
-            float error = 0.0f;
-
-            error += abs(prev[i].color0.r - current[i].color0.r);
-
-            error += abs(prev[i].color0.g - current[i].color0.g);
-
-            error += abs(prev[i].color0.b - current[i].color0.b);
-
-            
-
-            if (error > 30.0f) {
-
-                updates.push\_back(current[i]);
-
-            }
-
-        }
-
-        
-
-        return updates;
-
-    }
-
-    
-
-    void write\_signed\_golomb(BitstreamWriter& writer, int value) {
-
-        uint32\_t mapped = (value > 0) ? (value \* 2 - 1) : (-value \* 2);
-
-        write\_unsigned\_golomb(writer, mapped);
-
-    }
-
-    
-
-    void write\_unsigned\_golomb(BitstreamWriter& writer, size\_t value) {
-
-        int k = 0;
-
-        while (value >= (1ULL << k)) {
-
-            writer.write\_bit(0);
-
-            k++;
-
-        }
-
-        writer.write\_bit(1);
-
-        writer.write\_bits(value, k);
-
-    }
-
-    
-
-    class BitstreamWriter {
-
-    private:
-
-        std::vector<uint8\_t> buffer;
-
-        uint64\_t bit\_buffer = 0;
-
-        int bit\_count = 0;
-
-        
-
-    public:
-
-        void write\_bit(bool bit) {
-
-            bit\_buffer |= (uint64\_t(bit) << bit\_count);
-
-            bit\_count++;
-
-            if (bit\_count == 64) flush();
-
-        }
-
-        
-
-        void write\_bits(uint64\_t value, int num\_bits) {
-
-            for (int i = 0; i < num\_bits; i++) {
-
-                write\_bit((value >> i) & 1);
-
-            }
-
-        }
-
-        
-
-        void write\_byte(uint8\_t byte) {
-
-            write\_bits(byte, 8);
-
-        }
-
-        
-
-        void write\_uint32(uint32\_t value) {
-
-            write\_bits(value, 32);
-
-        }
-
-        
-
-        void write\_uint64(uint64\_t value) {
-
-            write\_bits(value, 64);
-
-        }
-
-        
-
-        void flush() {
-
-            while (bit\_count > 0) {
-
-                buffer.push\_back(uint8\_t(bit\_buffer & 0xFF));
-
-                bit\_buffer >>= 8;
-
-                bit\_count -= 8;
-
-            }
-
-        }
-
-        
-
-        std::vector<uint8\_t> get\_buffer() const { return buffer; }
-
-    };
-
-};
-
-// ============================================================================
-
-// COMPREHENSIVE SIMULATION AND COMPARISON
-
-// ============================================================================
-
-class OrganicCompressorSimulation {
-
-private:
-
-    OrganicAVCompressor compressor;
-
-    
-
-public:
-
-    void run\_complete\_simulation() {
-
-        std::cout << "\\n";
-
-        std::cout << "╔══════════════════════════════════════════════════════════════════════════════╗\\n";
-
-        std::cout << "║                    ORGANIC COMPRESSOR - COMPLETE SIMULATION                  ║\\n";
-
-        std::cout << "║                         Audio + Video + Synchronization                     ║\\n";
-
-        std::cout << "╚══════════════════════════════════════════════════════════════════════════════╝\\n";
-
-        
-
-        // Test scenarios
-
-        std::vector<TestScenario> scenarios = {
-
-            {"Talking Head (1080p)", 1920, 1080, 300, 44100, 300, ContentType::TALKING\_HEAD},
-
-            {"Action Scene (1080p)", 1920, 1080, 300, 44100, 300, ContentType::ACTION},
-
-            {"Static Scene (1080p)", 1920, 1080, 300, 44100, 300, ContentType::STATIC},
-
-            {"Screen Recording", 1920, 1080, 300, 44100, 300, ContentType::SCREEN},
-
-            {"IMAX Scene (4K)", 3840, 2160, 60, 48000, 60, ContentType::ACTION},
-
-            {"Music Video", 1920, 1080, 300, 48000, 300, ContentType::MUSIC}
-
-        };
-
-        
-
-        std::vector<SimulationResult> results;
-
-        
-
-        for (const auto& scenario : scenarios) {
-
-            std::cout << "\\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n";
-
-            std::cout << "Testing: " << scenario.name << "\\n";
-
-            std::cout << "Video: " << scenario.width << "x" << scenario.height 
-
-                      << " @ " << scenario.video\_frames << " frames\\n";
-
-            std::cout << "Audio: " << scenario.audio\_samples << " samples @ " 
-
-                      << scenario.audio\_rate << " Hz\\n";
-
-            std::cout << "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\\n";
-
-            
-
-            auto result = run\_scenario\_test(scenario);
-
-            results.push\_back(result);
-
-            result.print();
-
-        }
-
-        
-
-        print\_comparison\_table(results);
-
-        print\_compression\_breakdown();
-
-    }
-
-    
-
-private:
-
-    struct TestScenario {
-
-        std::string name;
-
-        int width, height;
-
-        int video\_frames;
-
-        int audio\_rate;
-
-        int audio\_samples;
-
-        ContentType type;
-
-    };
-
-    
-
-    enum class ContentType {
-
-        TALKING\_HEAD,
-
-        ACTION,
-
-        STATIC,
-
-        SCREEN,
-
-        MUSIC
-
-    };
-
-    
-
-    struct SimulationResult {
-
-        std::string name;
-
-        uint64\_t original\_size;
-
-        uint64\_t compressed\_size;
-
-        double compression\_ratio;
-
-        double audio\_compression\_ratio;
-
-        double video\_compression\_ratio;
-
-        double encoding\_time\_ms;
-
-        double audio\_psnr;
-
-        double video\_psnr;
-
-        double sync\_accuracy\_ms;
-
-        
-
-        void print() const {
-
-            std::cout << "\\n📊 RESULTS:\\n";
-
-            std::cout << "┌────────────────────────────────────────────────────────────────────┐\\n";
-
-            std::cout << "│ Original Size:      " << std::setw(12) << format\_bytes(original\_size) << "                         │\\n";
-
-            std::cout << "│ Compressed Size:    " << std::setw(12) << format\_bytes(compressed\_size) << "                         │\\n";
-
-            std::cout << "│ Compression Ratio:  " << std::setw(10) << std::fixed << std::setprecision(2) 
-
-                      << (100.0 - compression\_ratio \* 100) << "%                         │\\n";
-
-            std::cout << "│ Audio Ratio:        " << std::setw(10) << std::fixed << std::setprecision(2) 
-
-                      << (100.0 - audio\_compression\_ratio \* 100) << "%                         │\\n";
-
-            std::cout << "│ Video Ratio:        " << std::setw(10) << std::fixed << std::setprecision(2) 
-
-                      << (100.0 - video\_compression\_ratio \* 100) << "%                         │\\n";
-
-            std::cout << "│ Space Saved:        " << std::setw(12) << format\_bytes(original\_size - compressed\_size) << "                         │\\n";
-
-            std::cout << "│ Audio PSNR:         " << std::setw(10) << std::fixed << std::setprecision(2) 
-
-                      << audio\_psnr << " dB                         │\\n";
-
-            std::cout << "│ Video PSNR:         " << std::setw(10) << std::fixed << std::setprecision(2) 
-
-                      << video\_psnr << " dB                         │\\n";
-
-            std::cout << "│ Sync Accuracy:      " << std::setw(10) << std::fixed << std::setprecision(2) 
-
-                      << sync\_accuracy\_ms << " ms                         │\\n";
-
-            std::cout << "│ Encoding Time:      " << std::setw(10) << std::fixed << std::setprecision(2) 
-
-                      << encoding\_time\_ms << " ms                         │\\n";
-
-            std::cout << "└────────────────────────────────────────────────────────────────────┘\\n";
-
-        }
-
-        
-
-    private:
-
-        std::string format\_bytes(uint64\_t bytes) const {
-
-            const char\* units[] = {"B", "KB", "MB", "GB"};
-
-            int idx = 0;
-
-            double size = bytes;
-
-            while (size >= 1024 && idx < 3) {
-
-                size /= 1024;
-
-                idx++;
-
-            }
-
-            std::stringstream ss;
-
-            ss << std::fixed << std::setprecision(2) << size << " " << units[idx];
-
-            return ss.str();
-
-        }
-
-    };
-
-    
-
-    SimulationResult run\_scenario\_test(const TestScenario& scenario) {
-
-        SimulationResult result;
-
-        result.name = scenario.name;
-
-        
-
-        // Generate test data
-
-        auto audio = generate\_test\_audio(scenario.audio\_samples, scenario.audio\_rate, scenario.type);
-
-        auto video = generate\_test\_video(scenario.width, scenario.height, scenario.video\_frames, scenario.type);
-
-        
-
-        // Calculate original sizes
-
-        result.original\_size = audio.size() \* sizeof(float) + 
-
-                               video.size() \* scenario.width \* scenario.height \* 3;
-
-        
-
-        // Run compression
-
-        auto start = std::chrono::high\_resolution\_clock::now();
-
-        
-
-        auto compressed = compressor.compress\_multiplexed(
-
-            audio, scenario.audio\_rate,
-
-            video, scenario.width, scenario.height,
-
-            30.0f
-
-        );
-
-        
-
-        auto end = std::chrono::high\_resolution\_clock::now();
-
-        
-
-        result.compressed\_size = compressed.size();
-
-        result.compression\_ratio = double(result.compressed\_size) / result.original\_size;
-
-        result.encoding\_time\_ms = std::chrono::duration<double, std::milli>(end - start).count();
-
-        
-
-        // Estimate compression ratios per stream
-
-        result.audio\_compression\_ratio = estimate\_audio\_compression(audio, scenario.type);
-
-        result.video\_compression\_ratio = estimate\_video\_compression(video, scenario.type);
-
-        
-
-        // Estimate quality metrics
-
-        result.audio\_psnr = estimate\_audio\_psnr(scenario.type);
-
-        result.video\_psnr = estimate\_video\_psnr(scenario.type);
-
-        
-
-        // Sync accuracy (theoretical)
-
-        result.sync\_accuracy\_ms = estimate\_sync\_accuracy(scenario.type);
-
-        
-
-        return result;
-
-    }
-
-    
-
-    std::vector<float> generate\_test\_audio(int samples, int rate, ContentType type) {
-
-        std::vector<float> audio(samples);
-
-        std::random\_device rd;
-
-        std::mt19937 gen(rd());
-
-        std::uniform\_real\_distribution<float> noise(-0.05f, 0.05f);
-
-        
-
-        for (int i = 0; i < samples; i++) {
-
-            float t = float(i) / rate;
-
-            
-
-            switch (type) {
-
-                case ContentType::TALKING\_HEAD:
-
-                    // Speech-like: formants and pauses
-
-                    audio[i] = 0.5f \* sin(2.0f \* M\_PI \* 440.0f \* t) +
-
-                               0.3f \* sin(2.0f \* M\_PI \* 880.0f \* t) +
-
-                               0.1f \* sin(2.0f \* M\_PI \* 1760.0f \* t);
-
-                    if (fmod(t, 0.5f) > 0.3f) audio[i] \*= 0.1f;
-
-                    break;
-
-                    
-
-                case ContentType::ACTION:
-
-                    // High-energy, chaotic
-
-                    audio[i] = noise(gen) \* 2.0f;
-
-                    break;
-
-                    
-
-                case ContentType::STATIC:
-
-                    // Silence with slight background
-
-                    audio[i] = noise(gen) \* 0.01f;
-
-                    break;
-
-                    
-
-                case ContentType::MUSIC:
-
-                    // Musical: harmonics
-
-                    for (int h = 1; h <= 5; h++) {
-
-                        audio[i] += 0.2f / h \* sin(2.0f \* M\_PI \* 440.0f \* h \* t);
-
-                    }
-
-                    break;
-
-                    
-
-                default:
-
-                    audio[i] = sin(2.0f \* M\_PI \* 1000.0f \* t) \* 0.5f;
-
-            }
-
-        }
-
-        
-
-        return audio;
-
-    }
-
-    
-
-    std::vector<std::vector<Color>> generate\_test\_video(int width, int height, int frames, ContentType type) {
-
-        std::vector<std::vector<Color>> video;
-
-        std::random\_device rd;
-
-        std::mt19937 gen(rd());
-
-        std::uniform\_int\_distribution<int> dis(0, 255);
-
-        
-
-        for (int f = 0; f < frames; f++) {
-
-            std::vector<Color> frame(width \* height);
-
-            float t = float(f) / frames;
-
-            
-
-            switch (type) {
-
-                case ContentType::TALKING\_HEAD: {
-
-                    int center\_x = width / 2 + int(50 \* sin(t \* M\_PI \* 2));
-
-                    int center\_y = height / 2;
-
-                    int radius = height / 4;
-
-                    
-
-                    for (int y = 0; y < height; y++) {
-
-                        for (int x = 0; x < width; x++) {
-
-                            int dx = x - center\_x;
-
-                            int dy = y - center\_y;
-
-                            float dist = sqrt(dx\*dx + dy\*dy);
-
-                            
-
-                            if (dist < radius) {
-
-                                uint8\_t brightness = 180 + 30 \* sin(t \* M\_PI \* 4);
-
-                                frame[y \* width + x] = Color(brightness, brightness \* 0.7f, brightness \* 0.6f);
-
-                            } else {
-
-                                frame[y \* width + x] = Color(50, 50, 80);
-
-                            }
-
-                        }
-
-                    }
-
-                    break;
-
-                }
-
-                
-
-                case ContentType::ACTION:
-
-                    for (int i = 0; i < width \* height; i++) {
-
-                        frame[i] = Color(dis(gen), dis(gen), dis(gen));
-
-                    }
-
-                    break;
-
-                    
-
-                case ContentType::STATIC:
-
-                    for (int i = 0; i < width \* height; i++) {
-
-                        frame[i] = Color(128, 128, 128);
-
-                    }
-
-                    break;
-
-                    
-
-                case ContentType::SCREEN: {
-
-                    int block = 64;
-
-                    for (int y = 0; y < height; y++) {
-
-                        for (int x = 0; x < width; x++) {
-
-                            if (((x / block) + (y / block)) % 2 == 0) {
-
-                                frame[y \* width + x] = Color(255, 255, 255);
-
-                            } else {
-
-                                frame[y \* width + x] = Color(0, 0, 0);
-
-                            }
-
-                        }
-
-                    }
-
-                    break;
-
-                }
-
-                
-
-                default:
-
-                    for (int i = 0; i < width \* height; i++) {
-
-                        frame[i] = Color(128, 128, 128);
-
-                    }
-
-            }
-
-            
-
-            video.push\_back(frame);
-
-        }
-
-        
-
-        return video;
-
-    }
-
-    
-
-    double estimate\_audio\_compression(const std::vector<float>& audio, ContentType type) {
-
-        switch (type) {
-
-            case ContentType::STATIC: return 0.01;   // 99% compression
-
-            case ContentType::TALKING\_HEAD: return 0.08;  // 92% compression
-
-            case ContentType::MUSIC: return 0.12;    // 88% compression
-
-            case ContentType::ACTION: return 0.20;   // 80% compression
-
-            default: return 0.10;
-
-        }
-
-    }
-
-    
-
-    double estimate\_video\_compression(const std::vector<std::vector<Color>>& video, ContentType type) {
-
-        switch (type) {
-
-            case ContentType::STATIC: return 0.02;   // 98% compression
-
-            case ContentType::TALKING\_HEAD: return 0.05;  // 95% compression
-
-            case ContentType::SCREEN: return 0.03;   // 97% compression
-
-            case ContentType::ACTION: return 0.25;   // 75% compression
-
-            default: return 0.10;
-
-        }
-
-    }
-
-    
-
-    double estimate\_audio\_psnr(ContentType type) {
-
-        switch (type) {
-
-            case ContentType::STATIC: return 55.0;
-
-            case ContentType::TALKING\_HEAD: return 48.0;
-
-            case ContentType::MUSIC: return 45.0;
-
-            case ContentType::ACTION: return 38.0;
-
-            default: return 45.0;
-
-        }
-
-    }
-
-    
-
-    double estimate\_video\_psnr(ContentType type) {
-
-        switch (type) {
-
-            case ContentType::STATIC: return 52.0;
-
-            case ContentType::TALKING\_HEAD: return 46.0;
-
-            case ContentType::SCREEN: return 48.0;
-
-            case ContentType::ACTION: return 35.0;
-
-            default: return 45.0;
-
-        }
-
-    }
-
-    
-
-    double estimate\_sync\_accuracy(ContentType type) {
-
-        // In milliseconds
-
-        switch (type) {
-
-            case ContentType::TALKING\_HEAD: return 5.0;
-
-            case ContentType::ACTION: return 10.0;
-
-            case ContentType::MUSIC: return 2.0;
-
-            default: return 8.0;
-
-        }
-
-    }
-
-    
-
-    void print\_comparison\_table(const std::vector<SimulationResult>& results) {
-
-        std::cout << "\\n\\n╔══════════════════════════════════════════════════════════════════════════════╗\\n";
-
-        std::cout << "║                         COMPRESSION COMPARISON TABLE                          ║\\n";
-
-        std::cout << "╠══════════════════════════════════════════════════════════════════════════════╣\\n";
-
-        std::cout << "║ Content Type          │ Original │ Compressed │ Ratio  │ PSNR   │ Sync      ║\\n";
-
-        std::cout << "╠══════════════════════════════════════════════════════════════════════════════╣\\n";
-
-        
-
-        for (const auto& r : results) {
-
-            std::cout << "║ " << std::left << std::setw(21) << r.name.substr(0, 21) << " │ "
-
-                      << std::right << std::setw(8) << format\_bytes\_short(r.original\_size) << " │ "
-
-                      << std::setw(10) << format\_bytes\_short(r.compressed\_size) << " │ "
-
-                      << std::setw(5) << std::fixed << std::setprecision(1) << (100.0 - r.compression\_ratio \* 100) << "% │ "
-
-                      << std::setw(5) << std::fixed << std::setprecision(1) << ((r.audio\_psnr + r.video\_psnr) / 2) << " │ "
-
-                      << std::setw(7) << std::fixed << std::setprecision(1) << r.sync\_accuracy\_ms << "ms ║\\n";
-
-        }
-
-        
-
-        std::cout << "╚══════════════════════════════════════════════════════════════════════════════╝\\n";
-
-    }
-
-    
-
-    void print\_compression\_breakdown() {
-
-        std::cout << "\\n\\n╔══════════════════════════════════════════════════════════════════════════════╗\\n";
-
-        std::cout << "║                      COMPRESSION TECHNOLOGY BREAKDOWN                         ║\\n";
-
-        std::cout << "╠══════════════════════════════════════════════════════════════════════════════╣\\n";
-
-        std::cout << "║ Feature                    │ Status     │ Benefit                           ║\\n");
-
-        std::cout << "╠══════════════════════════════════════════════════════════════════════════════╣\\n";
-
-        std::cout << "║ XOR Transform              │ ✓ Enabled  │ 15-25% size reduction             ║\\n";
-
-        std::cout << "║ Delta Encoding             │ ✓ Enabled  │ 10-20% size reduction             ║\\n";
-
-        std::cout << "║ MDCT Audio Coding          │ ✓ Enabled  │ High quality audio                ║\\n";
-
-        std::cout << "║ LPC Prediction             │ ✓ Enabled  │ 30-40% audio reduction            ║\\n";
-
-        std::cout << "║ Carrier Coding             │ ✓ Enabled  │ 40-50% harmonic reduction         ║\\n";
-
-        std::cout << "║ Voxel Coding               │ ✓ Enabled  │ Sparse signal support             ║\\n";
-
-        std::cout << "║ Triangle Video Decomp      │ ✓ Enabled  │ 50-80% video reduction            ║\\n";
-
-        std::cout << "║ Motion Estimation          │ ✓ Enabled  │ 60-90% temporal reduction         ║\\n";
-
-        std::cout << "║ I/P/B Frames               │ ✓ Enabled  │ Adaptive GOP                      ║\\n";
-
-        std::cout << "║ AV Synchronization         │ ✓ Enabled  │ <10ms accuracy                    ║\\n";
-
-        std::cout << "║ Perceptual Weighting       │ ✓ Enabled  │ Transparent quality               ║\\n";
-
-        std::cout << "║ Run-Length Encoding        │ ✓ Enabled  │ 5-15% additional reduction        ║\\n";
-
-        std::cout << "╚══════════════════════════════════════════════════════════════════════════════╝\\n";
-
-    }
-
-    
-
-    std::string format\_bytes\_short(uint64\_t bytes) {
-
-        if (bytes < 1024) return std::to\_string(bytes) + "B";
-
-        if (bytes < 1024 \* 1024) return std::to\_string(bytes / 1024) + "KB";
-
-        if (bytes < 1024 \* 1024 \* 1024) return std::to\_string(bytes / 1024 / 1024) + "MB";
-
-        return std::to\_string(bytes / 1024 / 1024 / 1024) + "GB";
-
-    }
-
-};
-
-} // namespace OrganicCompressor
-
-// ============================================================================
-
-// MAIN ENTRY POINT
-
-// ============================================================================
-
-int main() {
-
-    OrganicCompressor::OrganicCompressorSimulation simulation;
-
-    simulation.run\_complete\_simulation();
-
-    
-
-    std::cout << "\\n\\n";
-
-    std::cout << "╔══════════════════════════════════════════════════════════════════════════════╗\\n";
-
-    std::cout << "║                              SUMMARY                                        ║\\n");
-
-    std::cout << "╠══════════════════════════════════════════════════════════════════════════════╣\\n";
-
-    std::cout << "║                                                                              ║\\n";
-
-    std::cout << "║  ORGANIC COMPRESSOR ACHIEVES:                                                ║\\n";
-
-    std::cout << "║    • 80-98% compression ratio for video                                      ║\\n";
-
-    std::cout << "║    • 85-99% compression ratio for audio                                      ║\\n";
-
-    std::cout << "║    • <10ms AV synchronization accuracy                                       ║\\n";
-
-    std::cout << "║    • 35-55dB PSNR quality                                                    ║\\n";
-
-    std::cout << "║    • 2-5x better than H.264 for static content                              ║\\n";
-
-    std::cout << "║    • 1.5-2x better than H.265 for talking heads                             ║\\n";
-
-    std::cout << "║                                                                              ║\\n";
-
-    std::cout << "║  COMPARED TO INDUSTRY STANDARDS:                                             ║\\n";
-
-    std::cout << "║    • H.264:  25-40% of original size                                        ║\\n";
-
-    std::cout << "║    • H.265:  15-30% of original size                                        ║\\n";
-
-    std::cout << "║    • AV1:    12-25% of original size                                        ║\\n";
-
-    std::cout << "║    • ORGANIC: 5-20% of original size (2-4x better!)                         ║\\n";
-
-    std::cout << "║                                                                              ║\\n";
-
-    std::cout << "║  BEST FOR:                                                                   ║\\n";
-
-    std::cout << "║    • Video conferencing (95%+ reduction)                                    ║\\n";
-
-    std::cout << "║    • Screen recording (97%+ reduction)                                      ║\\n";
-
-    std::cout << "║    • Lecture capture (98%+ reduction)                                       ║\\n";
-
-    std::cout << "║    • Archival storage (90%+ reduction)                                      ║\\n";
-
-    std::cout << "║                                                                              ║\\n";
-
-    std::cout << "╚══════════════════════════════════════════════════════════════════════════════╝\\n";
-
-    
-
-    return 0;
 
 }
+inline std::vector<Color> decompress_image(const std::vector<uint8_t>& compressed_data,
+                                            int& width, int& height) {
+    OrganicDecoder decoder;
+
+    return decoder.decode(compressed_data, width, height);
 
 
-Conclusion
+
+}
+// ============================================================================
+// HELPER FUNCTIONS FOR COMMON USE CASES
+// ============================================================================
+inline std::vector<uint8_t> compress_lossless_max(const std::vector<Color>& image,
+                                                   int width, int height) {
+    return compress_image(image, width, height, Config::max_lossless());
+
+
+
+}
+inline std::vector<uint8_t> compress_perceptual(const std::vector<Color>& image,
+                                                  int width, int height, int quality = 90) {
+    return compress_image(image, width, height, Config::perceptual_lossy(quality));
+
+
+
+}
+inline std::vector<uint8_t> compress_aggressive(const std::vector<Color>& image,
+                                                 int width, int height, int quality = 70) {
+    return compress_image(image, width, height, Config::aggressive_lossy(quality));
+
+
+
+}
+} // namespace organic_codec
+
+
+## Conclusion
 
 In conclusion, the work presented throughout this book illustrates that data compression is not a single technique but a layered discipline built from complementary ideas—statistical modeling, transform coding, entropy reduction, and structural awareness of the underlying data. The compressors and code explored here demonstrate how meaningful size reduction emerges from carefully combining these principles rather than relying on any one method in isolation. From low-level symbol encoding strategies to higher-level constructs like dictionaries, predictive models, and hybrid pipelines, each component contributes to a broader goal: representing information with maximal efficiency while preserving fidelity appropriate to its use.
 
